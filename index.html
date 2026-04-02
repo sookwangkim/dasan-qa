@@ -654,7 +654,7 @@
 
           <div class="field">
             <label>질문 내용 *</label>
-            <textarea id="fQuestion" placeholder="궁금한 점을 자유롭게 입력하세요..." maxlength="500" oninput="onQuestionInput()"></textarea>
+            <textarea id="fQuestion" placeholder="• 이 내용 중 실제 업무에서 어떻게 적용될지 궁금한 부분은?&#10;• 이해는 됐지만 왜 이렇게 하는지 이유를 모르겠는 부분은?&#10;• 내가 이 상황이라면 어떻게 해야 하는지?" maxlength="500" oninput="onQuestionInput()"></textarea>
             <div class="similarity-alert" id="similarityAlert">
               ⚠️ <strong>유사한 질문 내용이 이미 입력되어 있습니다.</strong><br>
               <span id="similarText"></span>
@@ -978,8 +978,8 @@ function renderTopicsGrid() {
       <div class="topic-card-count">${t.questionCount || 0}개 질문</div>
       <div class="topic-card-title">${esc(t.title)}</div>
       <div class="topic-card-meta">
-        ${t.instructor ? `<span>👤 ${esc(t.instructor)}</span>` : ''}
-        ${t.date ? `<span>📅 ${t.date}</span>` : ''}
+        ${t.instructor ? `<span>👤 강사: ${esc(t.instructor)}</span>` : ''}
+        ${t.date ? `<span>📅 교육일: ${esc(t.date)}</span>` : ''}
       </div>
       ${t.notice ? `<div class="topic-card-notice">📢 ${esc(t.notice)}</div>` : ''}
     </div>
@@ -1260,8 +1260,8 @@ function renderTopicList() {
         <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:0">
           <div class="topic-row-title">${esc(t.title)}</div>
           <div class="topic-row-meta">
-            ${t.instructor ? `<span>👤 ${esc(t.instructor)}</span>` : ''}
-            ${t.date ? `<span>📅 ${t.date}</span>` : ''}
+            ${t.instructor ? `<span>👤 강사: ${esc(t.instructor)}</span>` : ''}
+            ${t.date ? `<span>📅 교육일: ${esc(t.date)}</span>` : ''}
           </div>
         </div>
         <span class="topic-row-count">${qCount}개 질문</span>
@@ -1281,7 +1281,6 @@ function renderTopicList() {
                 <span class="q-item-cat cat-${q.category}">${q.category}</span>
                 <div class="topic-q-actions">
                   <span style="color:var(--text3);font-size:11px;font-family:'DM Mono',monospace">${formatDate(q.createdAt)}</span>
-                  <button class="btn btn-danger btn-sm" onclick="deleteQuestion('${q.id}')">🗑</button>
                 </div>
               </div>
               <div class="topic-q-text">${esc(q.question)}</div>

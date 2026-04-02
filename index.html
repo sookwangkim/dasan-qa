@@ -825,9 +825,30 @@ const FIREBASE_CONFIG = {
   appId: "1:483038613081:web:1ea23e83207ea0cb0bab48"
 };
 
-// 관리자 비밀번호 (localStorage에서 불러오거나 기본값 사용)
+// 관리자 비밀번호 (Firebase에서 불러옴 — 기본값 admin1234)
 const ADMIN_PASSWORD_KEY = 'eq_admin_pw';
-let ADMIN_PASSWORD = localStorage.getItem(ADMIN_PASSWORD_KEY) || "admin1234";
+let ADMIN_PASSWORD = "admin1234"; // Firebase 로드 전 임시값
+
+// Firebase에서 비밀번호 불러오기
+async function loadAdminPassword() {
+  if (!useFirebase) {
+    ADMIN_PASSWORD = localStorage.getItem(ADMIN_PASSWORD_KEY) || "admin1234";
+    return;
+  }
+  try {
+    const doc = await db.collection('config').doc('admin').get();
+    if (doc.exists && doc.data().password) {
+      ADMIN_PASSWORD = doc.data().password;
+    } else {
+      // 최초 1회 — Firebase에 기본값 저장
+      await db.collection('config').doc('admin').set({ password: 'admin1234' });
+      ADMIN_PASSWORD = 'admin1234';
+    }
+  } catch(e) {
+    console.warn('비밀번호 로드 실패, 기본값 사용');
+    ADMIN_PASSWORD = "admin1234";
+  }
+}
 
 // ═══════════════════════════════════════════════════
 //  FIREBASE INIT (데모 모드 폴백 포함)
@@ -1118,7 +1139,7 @@ function adminLogout() {
 // ═══════════════════════════════════════════════════
 //  CHANGE PASSWORD
 // ═══════════════════════════════════════════════════
-function changePassword() {
+async function changePassword() {
   const current = document.getElementById('pwCurrent').value;
   const newPw = document.getElementById('pwNew').value;
   const confirm = document.getElementById('pwConfirm').value;
@@ -1127,11 +1148,22 @@ function changePassword() {
   if (newPw.length < 4) { toast('새 비밀번호는 4자 이상이어야 합니다', 'error'); return; }
   if (newPw !== confirm) { toast('새 비밀번호가 일치하지 않습니다', 'error'); return; }
 
-  ADMIN_PASSWORD = newPw;
-  localStorage.setItem(ADMIN_PASSWORD_KEY, newPw);
-  closeModal('modalChangePw');
-  clearPwFields();
-  toast('비밀번호가 변경되었습니다', 'success');
+  try {
+    if (useFirebase) {
+      // Firebase에 저장 → 모든 PC에 동기화
+      await db.collection('config').doc('admin').set({ password: newPw });
+    } else {
+      // 데모 모드 → localStorage
+      localStorage.setItem(ADMIN_PASSWORD_KEY, newPw);
+    }
+    ADMIN_PASSWORD = newPw;
+    closeModal('modalChangePw');
+    clearPwFields();
+    toast('비밀번호가 변경되었습니다 (모든 기기에 적용)', 'success');
+  } catch(e) {
+    toast('비밀번호 변경 실패', 'error');
+    console.error(e);
+  }
 }
 
 function clearPwFields() {
@@ -1498,6 +1530,7 @@ function formatDateFile() {
 // ═══════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════
+loadAdminPassword(); // Firebase에서 비밀번호 먼저 로드
 loadTopics();
 </script>
 </body>

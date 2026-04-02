@@ -1120,8 +1120,12 @@ async function submitQuestion() {
 // ═══════════════════════════════════════════════════
 //  ADMIN AUTH
 // ═══════════════════════════════════════════════════
-function adminLogin() {
+async function adminLogin() {
   const pw = document.getElementById('adminPw').value;
+
+  // Firebase에서 최신 비밀번호 먼저 불러온 후 비교
+  await loadAdminPassword();
+
   if (pw === ADMIN_PASSWORD) {
     isAdminLoggedIn = true;
     document.getElementById('adminPw').value = '';

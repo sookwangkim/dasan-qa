@@ -1433,17 +1433,15 @@ async function downloadExcel() {
 
   try {
     const rows = qs.map(q => ({
-      '이름': q.name,
-      '부서': q.dept,
-      '질문내용': q.question,
-      '카테고리': q.category,
       '교육주제': q.topicTitle,
-      '등록일시': formatDate(q.createdAt),
+      '카테고리': q.category,
+      '이름/부서': `${q.name} / ${q.dept}`,
+      '질문내용': q.question,
     }));
 
     const ws = XLSX.utils.json_to_sheet(rows);
     ws['!cols'] = [
-      { wch: 10 }, { wch: 14 }, { wch: 60 }, { wch: 12 }, { wch: 30 }, { wch: 18 }
+      { wch: 30 }, { wch: 12 }, { wch: 18 }, { wch: 60 }
     ];
 
     const wb = XLSX.utils.book_new();
@@ -1464,9 +1462,9 @@ async function downloadExcel() {
 
 // CSV 폴백 다운로드
 function downloadCSV(qs) {
-  const header = ['이름','부서','질문내용','카테고리','교육주제','등록일시'];
+  const header = ['교육주제','카테고리','이름/부서','질문내용'];
   const rows = qs.map(q => [
-    q.name, q.dept, q.question, q.category, q.topicTitle, formatDate(q.createdAt)
+    q.topicTitle, q.category, `${q.name} / ${q.dept}`, q.question
   ].map(v => `"${String(v||'').replace(/"/g,'""')}"`));
   const csv = '\uFEFF' + [header, ...rows].map(r => r.join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

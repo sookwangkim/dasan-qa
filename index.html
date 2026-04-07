@@ -641,14 +641,22 @@
         <div class="form-card">
           <h3>질문 입력 <span class="badge" id="formTopicBadge">-</span></h3>
 
-          <div class="field-row">
-            <div class="field">
-              <label>이름 *</label>
-              <input type="text" id="fName" placeholder="홍길동" maxlength="20">
-            </div>
-            <div class="field">
-              <label>부서 *</label>
-              <input type="text" id="fDept" placeholder="인사팀" maxlength="30">
+          <div class="field">
+            <label>이름 / 부서 *</label>
+            <select id="fNameSelect" onchange="onNameSelect()" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:9px 12px;color:var(--text);font-size:14px;font-family:inherit;outline:none;transition:border-color 0.15s;">
+              <option value="">이름을 선택하세요</option>
+            </select>
+            <!-- 명단 없을 때 직접 입력 폴백 -->
+            <div id="fNameManual" style="display:none;margin-top:8px">
+              <div class="field-row" style="margin-bottom:0">
+                <div class="field" style="margin-bottom:0">
+                  <input type="text" id="fName" placeholder="홍길동" maxlength="20">
+                </div>
+                <div class="field" style="margin-bottom:0">
+                  <input type="text" id="fDept" placeholder="인사팀" maxlength="30">
+                </div>
+              </div>
+              <div style="font-size:11px;color:var(--text3);margin-top:4px">※ 명단이 등록되지 않아 직접 입력합니다</div>
             </div>
           </div>
 
@@ -1056,16 +1064,42 @@ function selectTopic(id) {
   renderTopicsGrid();
 }
 
-function goToForm() {
+async function goToForm() {
   if (!selectedTopic) return;
   document.getElementById('step-select-topic').style.display = 'none';
   document.getElementById('step-question-form').style.display = 'block';
   document.getElementById('bcTopicName').textContent = selectedTopic.title;
   document.getElementById('formTopicBadge').textContent = selectedTopic.title;
-  document.getElementById('fName').value = '';
-  document.getElementById('fDept').value = '';
   document.getElementById('fQuestion').value = '';
   hideSimilarity();
+
+  // 명단 불러와서 드롭다운 구성
+  const members = await fetchRoster(selectedTopic.id);
+  const sel = document.getElementById('fNameSelect');
+  const manual = document.getElementById('fNameManual');
+
+  if (members.length) {
+    sel.style.display = '';
+    manual.style.display = 'none';
+    sel.innerHTML = '<option value="">이름을 선택하세요</option>' +
+      members.map(m => `<option value="${esc(m.name)}|${esc(m.dept)}">${esc(m.name)} / ${esc(m.dept)}</option>`).join('');
+  } else {
+    // 명단 없으면 직접 입력
+    sel.style.display = 'none';
+    manual.style.display = '';
+    document.getElementById('fName').value = '';
+    document.getElementById('fDept').value = '';
+  }
+}
+
+function onNameSelect() {
+  // 선택 시 fName/fDept에도 값 세팅 (submitQuestion에서 사용)
+  const val = document.getElementById('fNameSelect').value;
+  if (val) {
+    const [name, dept] = val.split('|');
+    document.getElementById('fName') ? document.getElementById('fName').value = name : null;
+    document.getElementById('fDept') ? document.getElementById('fDept').value = dept : null;
+  }
 }
 
 function backToTopics() {
@@ -1152,27 +1186,38 @@ function classifyCategory(text) {
 //  SUBMIT QUESTION
 // ═══════════════════════════════════════════════════
 async function submitQuestion() {
-  const name = document.getElementById('fName').value.trim();
-  const dept = document.getElementById('fDept').value.trim();
-  const question = document.getElementById('fQuestion').value.trim();
+  // 드롭다운 or 직접입력에서 이름/부서 가져오기
+  let name, dept;
+  const sel = document.getElementById('fNameSelect');
+  const isDropdown = sel.style.display !== 'none';
 
-  if (!name || !dept || !question) { toast('모든 항목을 입력해 주세요', 'error'); return; }
+  if (isDropdown) {
+    const val = sel.value;
+    if (!val) { toast('이름을 선택해 주세요', 'error'); return; }
+    [name, dept] = val.split('|');
+  } else {
+    name = document.getElementById('fName').value.trim();
+    dept = document.getElementById('fDept').value.trim();
+    if (!name || !dept) { toast('이름과 부서를 입력해 주세요', 'error'); return; }
+  }
+
+  const question = document.getElementById('fQuestion').value.trim();
+  if (!question) { toast('질문 내용을 입력해 주세요', 'error'); return; }
   if (question.length < 5) { toast('질문을 좀 더 구체적으로 입력해 주세요', 'error'); return; }
   if (!selectedTopic) { toast('교육 주제를 선택해 주세요', 'error'); return; }
 
   const category = classifyCategory(question);
-  const data = {
-    topicId: selectedTopic.id,
-    topicTitle: selectedTopic.title,
-    name, dept, question, category
-  };
+  const data = { topicId: selectedTopic.id, topicTitle: selectedTopic.title, name, dept, question, category };
 
   try {
     await saveQuestion(data);
-    allQuestions = await fetchQuestions(); // refresh
+    allQuestions = await fetchQuestions();
     toast('질문이 등록되었습니다 ✓', 'success');
-    document.getElementById('fName').value = '';
-    document.getElementById('fDept').value = '';
+    if (isDropdown) sel.value = '';
+    else {
+      document.getElementById('fName').value = '';
+      document.getElementById('fDept').value = '';
+    }
     document.getElementById('fQuestion').value = '';
     hideSimilarity();
   } catch(e) {

@@ -688,7 +688,9 @@
           </div>
           <button class="btn btn-primary" style="width:100%" onclick="adminLogin()">로그인</button>
           <div style="margin-top:10px;font-size:11px;color:var(--text3)">
-            기본 비밀번호: <code style="font-family:monospace">admin1234</code> — 로그인 후 상단 <strong>🔑 비번변경</strong>에서 변경 가능합니다
+            관리자 기본 비밀번호: <code style="font-family:monospace">admin1234</code><br>
+            강사 기본 비밀번호: <code style="font-family:monospace">teacher1234</code><br>
+            로그인 후 상단 <strong>🔑 비번변경</strong>에서 변경 가능합니다 (관리자만)
           </div>
         </div>
       </div>
@@ -698,14 +700,14 @@
     <div class="page" id="page-admin">
       <div class="admin-dash-header">
         <div>
-          <h2>관리자 대시보드</h2>
+          <h2>관리자 대시보드 <span id="roleTag" style="font-size:12px;font-weight:500;padding:3px 10px;border-radius:10px;margin-left:6px;vertical-align:middle"></span></h2>
           <p style="color:var(--text2);font-size:13px">질문 조회, 주제 관리, 엑셀 다운로드</p>
         </div>
         <div class="admin-actions">
           <button class="btn btn-ghost btn-sm" onclick="refreshAdmin()">↻ 새로고침</button>
-          <button class="btn btn-primary btn-sm" onclick="openModal('modalCreateTopic')">+ 주제 생성</button>
+          <button class="btn btn-primary btn-sm admin-only" onclick="openModal('modalCreateTopic')">+ 주제 생성</button>
           <button class="btn btn-green btn-sm" onclick="downloadExcel()">↓ 엑셀 다운로드</button>
-          <button class="btn btn-ghost btn-sm" onclick="openModal('modalChangePw')">🔑 비번변경</button>
+          <button class="btn btn-ghost btn-sm admin-only" onclick="openModal('modalChangePw')">🔑 비번변경</button>
           <button class="btn btn-ghost btn-sm" onclick="adminLogout()">로그아웃</button>
         </div>
       </div>
@@ -731,7 +733,7 @@
       <!-- Panel: Cohorts -->
       <div class="admin-panel" id="panel-cohorts">
         <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
-          <button class="btn btn-primary btn-sm" onclick="openNewRoster()">+ 기수 명단 등록</button>
+          <button class="btn btn-primary btn-sm admin-only" onclick="openNewRoster()">+ 기수 명단 등록</button>
         </div>
         <div id="cohortList"></div>
       </div>
@@ -859,11 +861,18 @@
 
 <!-- ══════════════ MODAL: Change Password ══════════════ -->
 <div class="modal-overlay" id="modalChangePw">
-  <div class="modal" style="max-width:380px">
-    <h3>🔑 관리자 비밀번호 변경</h3>
+  <div class="modal" style="max-width:400px">
+    <h3>🔑 비밀번호 변경 (관리자 전용)</h3>
     <div class="field">
-      <label>현재 비밀번호</label>
-      <input type="password" id="pwCurrent" placeholder="현재 비밀번호 입력">
+      <label>변경할 비밀번호 종류</label>
+      <select id="pwType" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:9px 12px;color:var(--text);font-size:14px;font-family:inherit;outline:none;">
+        <option value="admin">관리자 비밀번호</option>
+        <option value="teacher">강사 비밀번호</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>현재 관리자 비밀번호 (확인용)</label>
+      <input type="password" id="pwCurrent" placeholder="현재 관리자 비밀번호 입력">
     </div>
     <div class="field">
       <label>새 비밀번호</label>
@@ -912,28 +921,29 @@ const FIREBASE_CONFIG = {
   appId: "1:483038613081:web:1ea23e83207ea0cb0bab48"
 };
 
-// 관리자 비밀번호 (Firebase에서 불러옴 — 기본값 admin1234)
+// 관리자/강사 비밀번호 (Firebase에서 불러옴)
 const ADMIN_PASSWORD_KEY = 'eq_admin_pw';
-let ADMIN_PASSWORD = "admin1234"; // Firebase 로드 전 임시값
+const TEACHER_PASSWORD_KEY = 'eq_teacher_pw';
+let ADMIN_PASSWORD = "admin1234";
+let TEACHER_PASSWORD = "teacher1234";
+let currentRole = null; // 'admin' or 'teacher'
 
-// Firebase에서 비밀번호 불러오기
 async function loadAdminPassword() {
   if (!useFirebase) {
     ADMIN_PASSWORD = localStorage.getItem(ADMIN_PASSWORD_KEY) || "admin1234";
+    TEACHER_PASSWORD = localStorage.getItem(TEACHER_PASSWORD_KEY) || "teacher1234";
     return;
   }
   try {
     const doc = await db.collection('config').doc('admin').get();
-    if (doc.exists && doc.data().password) {
-      ADMIN_PASSWORD = doc.data().password;
+    if (doc.exists) {
+      if (doc.data().password) ADMIN_PASSWORD = doc.data().password;
+      if (doc.data().teacherPassword) TEACHER_PASSWORD = doc.data().teacherPassword;
     } else {
-      // 최초 1회 — Firebase에 기본값 저장
-      await db.collection('config').doc('admin').set({ password: 'admin1234' });
-      ADMIN_PASSWORD = 'admin1234';
+      await db.collection('config').doc('admin').set({ password: 'admin1234', teacherPassword: 'teacher1234' });
     }
   } catch(e) {
     console.warn('비밀번호 로드 실패, 기본값 사용');
-    ADMIN_PASSWORD = "admin1234";
   }
 }
 
@@ -1250,12 +1260,16 @@ async function submitQuestion() {
 // ═══════════════════════════════════════════════════
 async function adminLogin() {
   const pw = document.getElementById('adminPw').value;
-
-  // Firebase에서 최신 비밀번호 먼저 불러온 후 비교
   await loadAdminPassword();
 
   if (pw === ADMIN_PASSWORD) {
     isAdminLoggedIn = true;
+    currentRole = 'admin';
+    document.getElementById('adminPw').value = '';
+    showPage('admin');
+  } else if (pw === TEACHER_PASSWORD) {
+    isAdminLoggedIn = true;
+    currentRole = 'teacher';
     document.getElementById('adminPw').value = '';
     showPage('admin');
   } else {
@@ -1265,33 +1279,47 @@ async function adminLogin() {
 
 function adminLogout() {
   isAdminLoggedIn = false;
+  currentRole = null;
   showPage('admin-gate');
 }
+
+// 관리자 전용 기능인지 체크
+function isAdminOnly() { return currentRole === 'admin'; }
 
 // ═══════════════════════════════════════════════════
 //  CHANGE PASSWORD
 // ═══════════════════════════════════════════════════
 async function changePassword() {
+  const pwType = document.getElementById('pwType').value;
   const current = document.getElementById('pwCurrent').value;
   const newPw = document.getElementById('pwNew').value;
   const confirm = document.getElementById('pwConfirm').value;
 
-  if (current !== ADMIN_PASSWORD) { toast('현재 비밀번호가 올바르지 않습니다', 'error'); return; }
+  // 관리자 비번으로만 변경 가능
+  if (current !== ADMIN_PASSWORD) { toast('현재 관리자 비밀번호가 올바르지 않습니다', 'error'); return; }
   if (newPw.length < 4) { toast('새 비밀번호는 4자 이상이어야 합니다', 'error'); return; }
   if (newPw !== confirm) { toast('새 비밀번호가 일치하지 않습니다', 'error'); return; }
 
   try {
-    if (useFirebase) {
-      // Firebase에 저장 → 모든 PC에 동기화
-      await db.collection('config').doc('admin').set({ password: newPw });
+    if (pwType === 'admin') {
+      if (useFirebase) {
+        await db.collection('config').doc('admin').update({ password: newPw });
+      } else {
+        localStorage.setItem(ADMIN_PASSWORD_KEY, newPw);
+      }
+      ADMIN_PASSWORD = newPw;
+      toast('관리자 비밀번호가 변경되었습니다', 'success');
     } else {
-      // 데모 모드 → localStorage
-      localStorage.setItem(ADMIN_PASSWORD_KEY, newPw);
+      if (useFirebase) {
+        await db.collection('config').doc('admin').update({ teacherPassword: newPw });
+      } else {
+        localStorage.setItem(TEACHER_PASSWORD_KEY, newPw);
+      }
+      TEACHER_PASSWORD = newPw;
+      toast('강사 비밀번호가 변경되었습니다', 'success');
     }
-    ADMIN_PASSWORD = newPw;
     closeModal('modalChangePw');
     clearPwFields();
-    toast('비밀번호가 변경되었습니다 (모든 기기에 적용)', 'success');
   } catch(e) {
     toast('비밀번호 변경 실패', 'error');
     console.error(e);
@@ -1319,6 +1347,24 @@ async function loadAdminData() {
   populateTopicFilter();
   populateRosterTopicFilter();
   renderCohorts();
+  applyRoleUI();
+}
+
+function applyRoleUI() {
+  const isAdmin = isAdminOnly();
+
+  // 역할 태그 표시
+  const tag = document.getElementById('roleTag');
+  if (tag) {
+    tag.textContent = isAdmin ? '관리자' : '강사';
+    tag.style.background = isAdmin ? 'rgba(192,24,28,0.1)' : 'rgba(8,145,178,0.1)';
+    tag.style.color = isAdmin ? 'var(--accent)' : '#0E7490';
+  }
+
+  // admin-only 버튼 숨기기/보이기
+  document.querySelectorAll('.admin-only').forEach(el => {
+    el.style.display = isAdmin ? '' : 'none';
+  });
 }
 
 async function refreshAdmin() { await loadAdminData(); toast('새로고침 완료', 'success'); }
@@ -1368,7 +1414,7 @@ function renderQuestions() {
         <span class="q-item-dept">${esc(q.dept)}</span>
         <span class="q-item-cat cat-${q.category}">${q.category}</span>
         <span class="q-item-time">${formatDate(q.createdAt)}</span>
-        <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="deleteQuestion('${q.id}')">🗑 삭제</button>
+        <button class="btn btn-danger btn-sm admin-only" style="margin-left:4px" onclick="deleteQuestion('${q.id}')">🗑 삭제</button>
       </div>
       <div class="q-item-text">${esc(q.question)}</div>
       <div style="font-size:11px;color:var(--text3);margin-top:6px">📌 ${esc(q.topicTitle)}</div>
@@ -1409,63 +1455,84 @@ async function renderTopicList() {
           <span style="font-size:11px;font-weight:700;color:var(--green)">✅ ${done.length}</span>
           <span style="font-size:11px;font-weight:700;color:var(--accent)">❌ ${notDone.length}</span>
         ` : ''}
-        <button class="btn btn-green btn-sm" onclick="event.stopPropagation();downloadExcelByTopic('${t.id}','${esc(t.title)}')">↓ 다운로드</button>
-        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openEditTopic('${t.id}')">✏️ 수정</button>
-        <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteTopic('${t.id}')">🗑 삭제</button>
+        <button class="btn btn-green btn-sm admin-only" onclick="event.stopPropagation();downloadExcelByTopic('${t.id}','${esc(t.title)}')">↓ 다운로드</button>
+        <button class="btn btn-ghost btn-sm admin-only" onclick="event.stopPropagation();openEditTopic('${t.id}')">✏️ 수정</button>
+        <button class="btn btn-danger btn-sm admin-only" onclick="event.stopPropagation();deleteTopic('${t.id}')">🗑 삭제</button>
         <span class="topic-row-chevron">▼</span>
       </div>
       <div class="topic-questions-panel" id="tpanel-${t.id}">
         ${t.notice ? `<div style="background:rgba(192,24,28,0.05);border:1px solid rgba(192,24,28,0.15);border-radius:6px;padding:8px 12px;font-size:12px;color:var(--accent);margin-bottom:12px;line-height:1.5">📢 ${esc(t.notice)}</div>` : ''}
 
         ${hasRoster ? `
-          <div style="margin-bottom:16px">
-            <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">👥 참석자 등록 현황</div>
-            <div style="display:flex;gap:8px;margin-bottom:10px">
-              <div class="stat-card" style="flex:1;padding:10px 12px">
-                <div class="stat-label">전체</div>
-                <div class="stat-val" style="font-size:18px">${members.length}</div>
-              </div>
-              <div class="stat-card" style="flex:1;padding:10px 12px;border-color:rgba(45,155,78,0.4)">
-                <div class="stat-label">완료</div>
-                <div class="stat-val" style="font-size:18px;color:var(--green)">${done.length}</div>
-              </div>
-              <div class="stat-card" style="flex:1;padding:10px 12px;border-color:rgba(192,24,28,0.3)">
-                <div class="stat-label">미등록</div>
-                <div class="stat-val" style="font-size:18px;color:var(--accent)">${notDone.length}</div>
-              </div>
+          <div style="display:flex;gap:8px;margin-bottom:14px">
+            <div class="stat-card" style="flex:1;padding:10px 12px">
+              <div class="stat-label">전체</div>
+              <div class="stat-val" style="font-size:18px">${members.length}</div>
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">
-              ${members.map(m => {
-                const reg = qs.some(q => q.name === m.name && q.dept === m.dept);
-                return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;
-                  background:${reg ? 'rgba(45,155,78,0.1)' : 'rgba(192,24,28,0.08)'};
-                  color:${reg ? 'var(--green)' : 'var(--accent)'};
-                  border:1px solid ${reg ? 'rgba(45,155,78,0.3)' : 'rgba(192,24,28,0.2)'}">
-                  ${reg ? '✅' : '❌'} ${esc(m.name)}
-                </span>`;
-              }).join('')}
+            <div class="stat-card" style="flex:1;padding:10px 12px;border-color:rgba(45,155,78,0.4)">
+              <div class="stat-label">완료</div>
+              <div class="stat-val" style="font-size:18px;color:var(--green)">${done.length}</div>
+            </div>
+            <div class="stat-card" style="flex:1;padding:10px 12px;border-color:rgba(192,24,28,0.3)">
+              <div class="stat-label">미등록</div>
+              <div class="stat-val" style="font-size:18px;color:var(--accent)">${notDone.length}</div>
             </div>
           </div>
-        ` : ''}
 
-        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">💬 등록된 질문</div>
-        ${qCount === 0
-          ? `<div class="empty-state" style="padding:20px"><div class="icon">💬</div><p>아직 등록된 질문이 없습니다</p></div>`
-          : qs.map((q, i) => `
-            <div class="topic-q-item">
-              <div class="topic-q-header">
-                <span class="topic-q-num">${i+1}</span>
-                <span class="q-item-name">${esc(q.name)}</span>
-                <span class="q-item-dept">${esc(q.dept)}</span>
-                <span class="q-item-cat cat-${q.category}">${q.category}</span>
-                <div class="topic-q-actions">
-                  <span style="color:var(--text3);font-size:11px;font-family:'DM Mono',monospace">${formatDate(q.createdAt)}</span>
+          <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">💬 질문 현황</div>
+          <div style="display:flex;flex-direction:column;gap:7px">
+            ${members.map((m, i) => {
+              const memberQs = qs.filter(q => q.name === m.name && q.dept === m.dept);
+              const reg = memberQs.length > 0;
+              if (reg) {
+                return memberQs.map((q, qi) => `
+                  <div class="topic-q-item">
+                    <div class="topic-q-header">
+                      <span class="topic-q-num">${i+1}</span>
+                      <span class="q-item-name">${esc(q.name)}</span>
+                      <span class="q-item-dept">${esc(q.dept)}</span>
+                      <span class="q-item-cat cat-${q.category}">${q.category}</span>
+                      <div class="topic-q-actions">
+                        <span style="color:var(--text3);font-size:11px;font-family:'DM Mono',monospace">${formatDate(q.createdAt)}</span>
+                      </div>
+                    </div>
+                    <div class="topic-q-text">${esc(q.question)}</div>
+                  </div>
+                `).join('');
+              } else {
+                return `
+                  <div class="topic-q-item" style="border-color:rgba(192,24,28,0.2);background:#FFF8F8">
+                    <div class="topic-q-header" style="margin-bottom:0">
+                      <span class="topic-q-num" style="background:var(--surface3);color:var(--text3)">${i+1}</span>
+                      <span class="q-item-name" style="color:var(--text2)">${esc(m.name)}</span>
+                      <span class="q-item-dept">${esc(m.dept)}</span>
+                      <span style="margin-left:auto;font-size:12px;font-weight:700;color:var(--accent)">✗ 미등록</span>
+                    </div>
+                  </div>
+                `;
+              }
+            }).join('')}
+          </div>
+        ` : `
+          <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">💬 등록된 질문</div>
+          ${qCount === 0
+            ? `<div class="empty-state" style="padding:20px"><div class="icon">💬</div><p>아직 등록된 질문이 없습니다</p></div>`
+            : qs.map((q, i) => `
+              <div class="topic-q-item">
+                <div class="topic-q-header">
+                  <span class="topic-q-num">${i+1}</span>
+                  <span class="q-item-name">${esc(q.name)}</span>
+                  <span class="q-item-dept">${esc(q.dept)}</span>
+                  <span class="q-item-cat cat-${q.category}">${q.category}</span>
+                  <div class="topic-q-actions">
+                    <span style="color:var(--text3);font-size:11px;font-family:'DM Mono',monospace">${formatDate(q.createdAt)}</span>
+                  </div>
                 </div>
+                <div class="topic-q-text">${esc(q.question)}</div>
               </div>
-              <div class="topic-q-text">${esc(q.question)}</div>
-            </div>
-          `).join('')
-        }
+            `).join('')
+          }
+        `}
       </div>
     </div>
   `}).join('');
@@ -1578,7 +1645,7 @@ async function openEditRoster(cohortId) {
   document.getElementById('modalRosterTitle').textContent = '✏️ 기수 명단 수정';
   document.getElementById('mRosterCohortId').value = cohortId;
   document.getElementById('mRosterCohortName').value = cohort.name;
-  document.getElementById('mRosterCohortName').readOnly = true;
+  document.getElementById('mRosterCohortName').readOnly = false;
   const text = cohort.members.map(m => `${m.name}/${m.dept}${m.joinDate?'/'+m.joinDate:''}`).join('\n');
   document.getElementById('mRosterText').value = text;
   openModal('modalRoster');
@@ -1586,7 +1653,8 @@ async function openEditRoster(cohortId) {
 
 async function saveRoster() {
   const cohortId = document.getElementById('mRosterCohortId').value;
-  const cohortName = document.getElementById('mRosterCohortName').value.trim();
+  const cohortNameInput = document.getElementById('mRosterCohortName');
+  const cohortName = cohortNameInput.value.trim();
   const text = document.getElementById('mRosterText').value.trim();
 
   if (!cohortName) { toast('기수명을 입력해 주세요', 'error'); return; }
@@ -1601,7 +1669,8 @@ async function saveRoster() {
 
   if (!members.length) { toast('올바른 형식으로 입력해 주세요', 'error'); return; }
 
-  const id = cohortId || 'cohort_' + cohortName.replace(/\s/g,'_');
+  // 수정 시엔 기존 id 사용, 신규 시엔 기수명으로 id 생성
+  const id = cohortId ? cohortId : 'cohort_' + cohortName.replace(/\s/g,'_') + '_' + Date.now();
   try {
     if (useFirebase) {
       await db.collection('cohorts').doc(id).set({ name: cohortName, members, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
@@ -1613,7 +1682,7 @@ async function saveRoster() {
     closeModal('modalRoster');
     toast(`${cohortName} 명단 ${members.length}명 저장 완료`, 'success');
     await loadAdminData();
-  } catch(e) { toast('저장 중 오류가 발생했습니다', 'error'); }
+  } catch(e) { toast('저장 중 오류가 발생했습니다: ' + e.message, 'error'); console.error(e); }
 }
 
 async function fetchAllCohorts() {
@@ -1655,8 +1724,8 @@ async function renderCohorts() {
         <span style="font-weight:700;font-size:14px">${esc(c.name)}</span>
         <span class="q-item-dept">${c.members.length}명</span>
         <div style="margin-left:auto;display:flex;gap:6px">
-          <button class="btn btn-ghost btn-sm" onclick="openEditRoster('${c.id}')">✏️ 수정</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteCohort('${c.id}','${esc(c.name)}')">🗑 삭제</button>
+          <button class="btn btn-ghost btn-sm admin-only" onclick="openEditRoster('${c.id}')">✏️ 수정</button>
+          <button class="btn btn-danger btn-sm admin-only" onclick="deleteCohort('${c.id}','${esc(c.name)}')">🗑 삭제</button>
         </div>
       </div>
       <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:5px">

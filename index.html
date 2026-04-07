@@ -715,31 +715,15 @@
 
       <!-- Admin Tabs -->
       <div class="admin-tabs">
-        <button class="admin-tab active" onclick="switchAdminTab('questions')">질문 목록</button>
-        <button class="admin-tab" onclick="switchAdminTab('topics')">주제 관리</button>
+        <button class="admin-tab active" onclick="switchAdminTab('topics')">주제별 질문</button>
         <button class="admin-tab" onclick="switchAdminTab('categories')">카테고리별</button>
         <button class="admin-tab" onclick="switchAdminTab('roster')">등록 현황</button>
-      </div>
-
-      <!-- Panel: Questions -->
-      <div class="admin-panel active" id="panel-questions">
-        <div class="filter-bar">
-          <select id="filterTopic" onchange="renderQuestions()">
-            <option value="">전체 주제</option>
-          </select>
-          <select id="filterCat" onchange="renderQuestions()">
-            <option value="">전체 카테고리</option>
-            <option>복리후생</option><option>업무환경</option><option>조직문화</option>
-            <option>인사정책</option><option>교육훈련</option><option>기타</option>
-          </select>
-          <input type="text" id="filterSearch" placeholder="이름·부서·내용 검색..." oninput="renderQuestions()">
-        </div>
-        <div class="q-list" id="qList"></div>
+        <button class="admin-tab" onclick="switchAdminTab('questions')">질문 목록</button>
       </div>
 
       <!-- Panel: Topics -->
-      <div class="admin-panel" id="panel-topics">
-        <p style="font-size:12px;color:var(--text3);margin-bottom:12px">주제를 클릭하면 소속 질문을 펼쳐볼 수 있습니다</p>
+      <div class="admin-panel active" id="panel-topics">
+        <p style="font-size:12px;color:var(--text3);margin-bottom:12px">주제를 클릭하면 질문과 등록 현황을 함께 볼 수 있습니다</p>
         <div id="topicList"></div>
       </div>
 
@@ -759,6 +743,22 @@
           <button class="btn btn-primary btn-sm" onclick="openModal('modalRoster')">+ 명단 등록</button>
         </div>
         <div id="rosterList"></div>
+      </div>
+
+      <!-- Panel: Questions -->
+      <div class="admin-panel" id="panel-questions">
+        <div class="filter-bar">
+          <select id="filterTopic" onchange="renderQuestions()">
+            <option value="">전체 주제</option>
+          </select>
+          <select id="filterCat" onchange="renderQuestions()">
+            <option value="">전체 카테고리</option>
+            <option>복리후생</option><option>업무환경</option><option>조직문화</option>
+            <option>인사정책</option><option>교육훈련</option><option>기타</option>
+          </select>
+          <input type="text" id="filterSearch" placeholder="이름·부서·내용 검색..." oninput="renderQuestions()">
+        </div>
+        <div class="q-list" id="qList"></div>
       </div>
     </div>
 
@@ -1294,7 +1294,7 @@ async function loadAdminData() {
   allQuestions = await fetchQuestions();
   renderStats();
   renderQuestions();
-  renderTopicList();
+  await renderTopicList();
   renderCategories();
   populateTopicFilter();
   populateRosterTopicFilter();
@@ -1355,15 +1355,27 @@ function renderQuestions() {
   `).join('');
 }
 
-function renderTopicList() {
+async function renderTopicList() {
   const el = document.getElementById('topicList');
   if (!allTopics.length) {
     el.innerHTML = '<div class="empty-state"><div class="icon">📁</div><p>등록된 주제가 없습니다</p></div>';
     return;
   }
+
+  // 모든 주제의 명단 미리 fetch
+  const rosterMap = {};
+  await Promise.all(allTopics.map(async t => {
+    rosterMap[t.id] = await fetchRoster(t.id);
+  }));
+
   el.innerHTML = allTopics.map(t => {
     const qs = allQuestions.filter(q => q.topicId === t.id);
     const qCount = qs.length;
+    const members = rosterMap[t.id] || [];
+    const done = members.filter(m => qs.some(q => q.name === m.name && q.dept === m.dept));
+    const notDone = members.filter(m => !qs.some(q => q.name === m.name && q.dept === m.dept));
+    const hasRoster = members.length > 0;
+
     return `
     <div class="topic-row" id="trow-${t.id}">
       <div class="topic-row-header" onclick="toggleTopicRow('${t.id}')">
@@ -1375,14 +1387,51 @@ function renderTopicList() {
           </div>
         </div>
         <span class="topic-row-count">${qCount}개 질문</span>
+        ${hasRoster ? `
+          <span style="font-size:11px;font-weight:700;color:var(--green)">✅ ${done.length}</span>
+          <span style="font-size:11px;font-weight:700;color:var(--accent)">❌ ${notDone.length}</span>
+        ` : ''}
         <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openEditTopic('${t.id}')">✏️ 수정</button>
         <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteTopic('${t.id}')">🗑 삭제</button>
         <span class="topic-row-chevron">▼</span>
       </div>
       <div class="topic-questions-panel" id="tpanel-${t.id}">
         ${t.notice ? `<div style="background:rgba(192,24,28,0.05);border:1px solid rgba(192,24,28,0.15);border-radius:6px;padding:8px 12px;font-size:12px;color:var(--accent);margin-bottom:12px;line-height:1.5">📢 ${esc(t.notice)}</div>` : ''}
+
+        ${hasRoster ? `
+          <div style="margin-bottom:16px">
+            <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">👥 참석자 등록 현황</div>
+            <div style="display:flex;gap:8px;margin-bottom:10px">
+              <div class="stat-card" style="flex:1;padding:10px 12px">
+                <div class="stat-label">전체</div>
+                <div class="stat-val" style="font-size:18px">${members.length}</div>
+              </div>
+              <div class="stat-card" style="flex:1;padding:10px 12px;border-color:rgba(45,155,78,0.4)">
+                <div class="stat-label">완료</div>
+                <div class="stat-val" style="font-size:18px;color:var(--green)">${done.length}</div>
+              </div>
+              <div class="stat-card" style="flex:1;padding:10px 12px;border-color:rgba(192,24,28,0.3)">
+                <div class="stat-label">미등록</div>
+                <div class="stat-val" style="font-size:18px;color:var(--accent)">${notDone.length}</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">
+              ${members.map(m => {
+                const reg = qs.some(q => q.name === m.name && q.dept === m.dept);
+                return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;
+                  background:${reg ? 'rgba(45,155,78,0.1)' : 'rgba(192,24,28,0.08)'};
+                  color:${reg ? 'var(--green)' : 'var(--accent)'};
+                  border:1px solid ${reg ? 'rgba(45,155,78,0.3)' : 'rgba(192,24,28,0.2)'}">
+                  ${reg ? '✅' : '❌'} ${esc(m.name)}
+                </span>`;
+              }).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">💬 등록된 질문</div>
         ${qCount === 0
-          ? `<div class="empty-state" style="padding:24px"><div class="icon">💬</div><p>아직 등록된 질문이 없습니다</p></div>`
+          ? `<div class="empty-state" style="padding:20px"><div class="icon">💬</div><p>아직 등록된 질문이 없습니다</p></div>`
           : qs.map((q, i) => `
             <div class="topic-q-item">
               <div class="topic-q-header">

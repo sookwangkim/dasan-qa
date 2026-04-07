@@ -1068,7 +1068,11 @@ function renderTopicsGrid() {
     grid.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>등록된 교육 주제가 없습니다</p></div>';
     return;
   }
-  grid.innerHTML = allTopics.map(t => `
+  grid.innerHTML = [...allTopics].sort((a, b) => {
+    if (!a.date) return 1;
+    if (!b.date) return -1;
+    return new Date(a.date) - new Date(b.date);
+  }).map(t => `
     <div class="topic-card ${selectedTopic?.id === t.id ? 'selected' : ''}" onclick="selectTopic('${t.id}')">
       <div class="topic-card-count">${t.questionCount || 0}개 질문</div>
       <div class="topic-card-title">${esc(t.title)}</div>

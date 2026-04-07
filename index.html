@@ -715,14 +715,20 @@
 
       <!-- Admin Tabs -->
       <div class="admin-tabs">
-        <button class="admin-tab active" onclick="switchAdminTab('topics')">주제별 질문</button>
+        <button class="admin-tab active" onclick="switchAdminTab('schedule')">교육일정·명단</button>
+        <button class="admin-tab" onclick="switchAdminTab('topics')">주제별 질문</button>
         <button class="admin-tab" onclick="switchAdminTab('categories')">카테고리별</button>
         <button class="admin-tab" onclick="switchAdminTab('roster')">등록 현황</button>
         <button class="admin-tab" onclick="switchAdminTab('questions')">질문 목록</button>
       </div>
 
+      <!-- Panel: Schedule -->
+      <div class="admin-panel active" id="panel-schedule">
+        <div id="scheduleList"></div>
+      </div>
+
       <!-- Panel: Topics -->
-      <div class="admin-panel active" id="panel-topics">
+      <div class="admin-panel" id="panel-topics">
         <p style="font-size:12px;color:var(--text3);margin-bottom:12px">주제를 클릭하면 질문과 등록 현황을 함께 볼 수 있습니다</p>
         <div id="topicList"></div>
       </div>
@@ -735,12 +741,13 @@
       <!-- Panel: Roster -->
       <div class="admin-panel" id="panel-roster">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
-          <div>
-            <select id="rosterTopicFilter" onchange="renderRoster()" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:6px 10px;color:var(--text);font-size:12px;font-family:inherit;cursor:pointer;outline:none;">
-              <option value="">주제 선택</option>
-            </select>
+          <select id="rosterTopicFilter" onchange="renderRoster()" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:6px 10px;color:var(--text);font-size:12px;font-family:inherit;cursor:pointer;outline:none;">
+            <option value="">주제 선택</option>
+          </select>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-ghost btn-sm" onclick="openEditRoster()" id="btnEditRoster" style="display:none">✏️ 명단 수정</button>
+            <button class="btn btn-primary btn-sm" onclick="openModal('modalRoster')">+ 명단 등록</button>
           </div>
-          <button class="btn btn-primary btn-sm" onclick="openModal('modalRoster')">+ 명단 등록</button>
         </div>
         <div id="rosterList"></div>
       </div>
@@ -1295,6 +1302,7 @@ async function loadAdminData() {
   renderStats();
   renderQuestions();
   await renderTopicList();
+  await renderSchedule();
   renderCategories();
   populateTopicFilter();
   populateRosterTopicFilter();
@@ -1601,6 +1609,10 @@ async function renderRoster() {
   const members = await fetchRoster(topicId);
   const topicQs = allQuestions.filter(q => q.topicId === topicId);
 
+  // 명단 있으면 수정 버튼 표시
+  const editBtn = document.getElementById('btnEditRoster');
+  if (editBtn) editBtn.style.display = members.length ? '' : 'none';
+
   if (!members.length) {
     el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>등록된 명단이 없습니다. 명단 등록 버튼을 눌러주세요.</p></div>';
     return;
@@ -1791,12 +1803,75 @@ function downloadCSV(qs) {
 // ═══════════════════════════════════════════════════
 //  ADMIN TABS
 // ═══════════════════════════════════════════════════
+async function renderSchedule() {
+  const el = document.getElementById('scheduleList');
+  if (!allTopics.length) {
+    el.innerHTML = '<div class="empty-state"><div class="icon">📅</div><p>등록된 교육 일정이 없습니다</p></div>';
+    return;
+  }
+
+  const rosterMap = {};
+  await Promise.all(allTopics.map(async t => {
+    rosterMap[t.id] = await fetchRoster(t.id);
+  }));
+
+  // 날짜순 정렬
+  const sorted = [...allTopics].sort((a, b) => {
+    if (!a.date) return 1;
+    if (!b.date) return -1;
+    return new Date(a.date) - new Date(b.date);
+  });
+
+  el.innerHTML = sorted.map(t => {
+    const members = rosterMap[t.id] || [];
+    return `
+    <div class="q-item" style="margin-bottom:12px;padding:18px 20px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:${members.length ? '14px' : '0'}">
+        <div>
+          <div style="font-weight:700;font-size:15px;margin-bottom:6px">${esc(t.title)}</div>
+          <div style="display:flex;gap:16px;flex-wrap:wrap">
+            ${t.date ? `<span style="font-size:13px;color:var(--text2)">📅 <strong>${esc(t.date)}</strong></span>` : ''}
+            ${t.instructor ? `<span style="font-size:13px;color:var(--text2)">👤 <strong>${esc(t.instructor)}</strong></span>` : ''}
+          </div>
+          ${t.notice ? `<div style="margin-top:8px;font-size:12px;color:var(--accent)">📢 ${esc(t.notice)}</div>` : ''}
+        </div>
+        <span style="font-size:12px;color:var(--text3);white-space:nowrap">참석자 ${members.length}명</span>
+      </div>
+      ${members.length ? `
+        <div style="border-top:1px solid var(--border);padding-top:12px">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">교육생 명단</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${members.map((m, i) => `
+              <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;font-size:12px">
+                <span style="color:var(--text3);font-family:'DM Mono',monospace;font-size:10px">${i+1}</span>
+                <strong>${esc(m.name)}</strong>
+                <span style="color:var(--text3)">${esc(m.dept)}</span>
+              </span>
+            `).join('')}
+          </div>
+        </div>
+      ` : `<div style="font-size:12px;color:var(--text3);border-top:1px solid var(--border);padding-top:10px">명단 미등록</div>`}
+    </div>
+  `}).join('');
+}
+
+async function openEditRoster() {
+  const topicId = document.getElementById('rosterTopicFilter').value;
+  if (!topicId) return;
+  const members = await fetchRoster(topicId);
+  const text = members.map(m => `${m.name}/${m.dept}`).join('\n');
+  document.getElementById('mRosterTopic').value = topicId;
+  document.getElementById('mRosterText').value = text;
+  openModal('modalRoster');
+}
+
 function switchAdminTab(tab) {
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
   event.target.classList.add('active');
   document.getElementById('panel-' + tab).classList.add('active');
   if (tab === 'roster') renderRoster();
+  if (tab === 'schedule') renderSchedule();
 }
 
 // ═══════════════════════════════════════════════════

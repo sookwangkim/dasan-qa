@@ -1430,7 +1430,11 @@ async function renderTopicList() {
   const cohorts = await fetchAllCohorts();
   const allMembers = cohorts.flatMap(c => c.members);
 
-  el.innerHTML = allTopics.map(t => {
+  el.innerHTML = [...allTopics].sort((a, b) => {
+    if (!a.date) return 1;
+    if (!b.date) return -1;
+    return new Date(a.date) - new Date(b.date);
+  }).map(t => {
     const qs = allQuestions.filter(q => q.topicId === t.id);
     const qCount = qs.length;
     const members = allMembers;
@@ -1453,7 +1457,7 @@ async function renderTopicList() {
           <span style="font-size:11px;font-weight:700;color:var(--green)">✅ ${done.length}</span>
           <span style="font-size:11px;font-weight:700;color:var(--accent)">❌ ${notDone.length}</span>
         ` : ''}
-        <button class="btn btn-green btn-sm admin-only" onclick="event.stopPropagation();downloadExcelByTopic('${t.id}','${esc(t.title)}')">↓ 다운로드</button>
+        <button class="btn btn-green btn-sm" onclick="event.stopPropagation();downloadExcelByTopic('${t.id}','${esc(t.title)}')">↓ 다운로드</button>
         <button class="btn btn-ghost btn-sm admin-only" onclick="event.stopPropagation();openEditTopic('${t.id}')">✏️ 수정</button>
         <button class="btn btn-danger btn-sm admin-only" onclick="event.stopPropagation();deleteTopic('${t.id}')">🗑 삭제</button>
         <span class="topic-row-chevron">▼</span>

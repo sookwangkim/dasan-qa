@@ -2194,7 +2194,6 @@ async function downloadExcelByTopic(topicId, topicTitle) {
       if (!catQs.length) return;
 
       // 카테고리 헤더 행
-      const catHeaderRow = row;
       set(row, 0, cat);
       set(row, 1, '');
       set(row, 2, '');
@@ -2400,8 +2399,8 @@ function switchAdminTab(tab) {
   document.getElementById('panel-' + tab).classList.add('active');
   if (tab === 'roster') renderRoster();
   if (tab === 'schedule') renderSchedule();
-  if (tab === 'cohorts') renderCohorts();
-  if (tab === 'catmgmt') renderCatMgmt();
+  if (tab === 'cohorts') renderCohorts().then(() => applyRoleUI());
+  if (tab === 'catmgmt') { renderCatMgmt(); applyRoleUI(); }
 }
 
 // ═══════════════════════════════════════════════════

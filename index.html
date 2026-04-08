@@ -2226,12 +2226,12 @@ async function downloadExcelByTopic(topicId, topicTitle) {
 
     ws['!merges'] = merges;
     ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: row-1, c: 2 } });
-    ws['!cols'] = [{ wch: 6 }, { wch: 16 }, { wch: 80 }];
+    ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 80 }];
 
     const sheetName = topicTitle.slice(0, 28);
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
     XLSX.writeFile(wb, `교육질문_${topicTitle.slice(0,20)}_${formatDateFile()}.xlsx`);
-    toast(`엑셀 다운로드 완료 (${entries.length}명, ${qs.length}개 질문)`, 'success');
+    toast(`엑셀 다운로드 완료 (${qs.length}개 질문)`, 'success');
   } catch(e) {
     console.error(e);
     downloadCSV(qs);

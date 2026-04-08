@@ -718,6 +718,7 @@
       <div class="admin-tabs">
         <button class="admin-tab active" onclick="switchAdminTab('schedule')">교육일정·명단</button>
         <button class="admin-tab" onclick="switchAdminTab('topics')">주제별 질문</button>
+        <button class="admin-tab" onclick="switchAdminTab('catmgmt')">카테고리 관리</button>
         <button class="admin-tab" onclick="switchAdminTab('categories')">카테고리별</button>
         <button class="admin-tab" onclick="switchAdminTab('cohorts')">기수 관리</button>
         <button class="admin-tab" onclick="switchAdminTab('roster')">등록 현황</button>
@@ -727,6 +728,15 @@
       <!-- Panel: Schedule -->
       <div class="admin-panel active" id="panel-schedule">
         <div id="scheduleList"></div>
+      </div>
+
+      <!-- Panel: Category Management -->
+      <div class="admin-panel" id="panel-catmgmt">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <p style="font-size:12px;color:var(--text3)">카테고리와 키워드를 관리합니다. 질문 등록 시 키워드가 포함되면 해당 카테고리로 자동 분류됩니다.</p>
+          <button class="btn btn-primary btn-sm admin-only" onclick="openModal('modalAddCategory')">+ 카테고리 추가</button>
+        </div>
+        <div id="catMgmtList"></div>
       </div>
 
       <!-- Panel: Cohorts -->
@@ -805,6 +815,27 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modalCreateTopic')">취소</button>
       <button class="btn btn-primary" onclick="createTopic()">생성</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MODAL: Add/Edit Category ══════════════ -->
+<div class="modal-overlay" id="modalAddCategory">
+  <div class="modal">
+    <h3 id="modalCatTitle">🏷️ 카테고리 추가</h3>
+    <input type="hidden" id="mCatOrigName">
+    <div class="field">
+      <label>카테고리 이름 *</label>
+      <input type="text" id="mCatName" placeholder="예: 복리후생" maxlength="20">
+    </div>
+    <div class="field">
+      <label>키워드 (쉼표로 구분) *</label>
+      <textarea id="mCatKeywords" style="min-height:80px" placeholder="복리, 식대, 연차, 휴가, 복지"></textarea>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">질문에 키워드가 포함되면 이 카테고리로 자동 분류됩니다</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modalAddCategory')">취소</button>
+      <button class="btn btn-primary" onclick="saveCategory()">저장</button>
     </div>
   </div>
 </div>
@@ -1210,15 +1241,43 @@ function hideSimilarity() {
 }
 
 // ═══════════════════════════════════════════════════
-//  CATEGORY AUTO-CLASSIFICATION
+//  CATEGORY AUTO-CLASSIFICATION — 동적 로드
 // ═══════════════════════════════════════════════════
-const CATEGORY_RULES = [
+const DEFAULT_CATEGORY_RULES = [
   { name: '복리후생', keywords: ['복리','혜택','식대','교통비','보험','연차','휴가','병가','육아','지원금','건강검진','동호회','복지'] },
   { name: '업무환경', keywords: ['사무실','PC','노트북','장비','재택','원격','유연','근무시간','출퇴근','주차','자리','회의실'] },
   { name: '조직문화', keywords: ['문화','분위기','회식','야근','팀','부서','소통','관계','선배','동료','수평','수직'] },
   { name: '인사정책', keywords: ['연봉','급여','승진','평가','계약','정규직','수습','이직','퇴직','성과','인사'] },
   { name: '교육훈련', keywords: ['교육','연수','훈련','자격증','스터디','역량','OJT','온보딩','멘토','학습'] },
 ];
+let CATEGORY_RULES = [...DEFAULT_CATEGORY_RULES];
+
+async function loadCategoryRules() {
+  try {
+    if (useFirebase) {
+      const doc = await db.collection('config').doc('categories').get();
+      if (doc.exists && doc.data().rules) {
+        CATEGORY_RULES = doc.data().rules;
+        return;
+      }
+      // 최초 1회 기본값 저장
+      await db.collection('config').doc('categories').set({ rules: DEFAULT_CATEGORY_RULES });
+    } else {
+      const saved = localStorage.getItem('eq_categories');
+      if (saved) CATEGORY_RULES = JSON.parse(saved);
+    }
+  } catch(e) {
+    console.warn('카테고리 로드 실패, 기본값 사용');
+  }
+}
+
+async function saveCategoryRules() {
+  if (useFirebase) {
+    await db.collection('config').doc('categories').set({ rules: CATEGORY_RULES });
+  } else {
+    localStorage.setItem('eq_categories', JSON.stringify(CATEGORY_RULES));
+  }
+}
 
 function classifyCategory(text) {
   const t = text.toLowerCase();
@@ -1228,6 +1287,106 @@ function classifyCategory(text) {
     if (score > bestScore) { bestScore = score; best = rule.name; }
   }
   return best || '기타';
+}
+
+// ── 카테고리 관리 UI ──
+function renderCatMgmt() {
+  const el = document.getElementById('catMgmtList');
+  if (!el) return;
+  if (!CATEGORY_RULES.length) {
+    el.innerHTML = '<div class="empty-state"><div class="icon">🏷️</div><p>등록된 카테고리가 없습니다</p></div>';
+    return;
+  }
+  el.innerHTML = CATEGORY_RULES.map((rule, i) => `
+    <div class="q-item" style="margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span class="q-item-cat cat-${rule.name}" style="font-size:13px;padding:4px 12px">${esc(rule.name)}</span>
+        <span style="font-size:11px;color:var(--text3)">키워드 ${rule.keywords.length}개</span>
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm admin-only" onclick="openEditCategory(${i})">✏️ 수정</button>
+          <button class="btn btn-danger btn-sm admin-only" onclick="deleteCategory(${i})">🗑 삭제</button>
+        </div>
+      </div>
+      <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">
+        ${rule.keywords.map(k => `<span style="font-size:11px;padding:2px 7px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">${esc(k)}</span>`).join('')}
+      </div>
+    </div>
+  `).join('');
+  // 기타 안내
+  el.innerHTML += `
+    <div class="q-item" style="opacity:0.6;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="q-item-cat cat-기타" style="font-size:13px;padding:4px 12px">기타</span>
+        <span style="font-size:11px;color:var(--text3)">위 카테고리에 해당하지 않는 질문은 자동으로 [기타]로 분류됩니다</span>
+      </div>
+    </div>
+  `;
+}
+
+function openEditCategory(idx) {
+  const rule = CATEGORY_RULES[idx];
+  document.getElementById('modalCatTitle').textContent = '✏️ 카테고리 수정';
+  document.getElementById('mCatOrigName').value = String(idx);
+  document.getElementById('mCatName').value = rule.name;
+  document.getElementById('mCatKeywords').value = rule.keywords.join(', ');
+  openModal('modalAddCategory');
+}
+
+function openAddCategory() {
+  document.getElementById('modalCatTitle').textContent = '🏷️ 카테고리 추가';
+  document.getElementById('mCatOrigName').value = '';
+  document.getElementById('mCatName').value = '';
+  document.getElementById('mCatKeywords').value = '';
+  openModal('modalAddCategory');
+}
+
+async function saveCategory() {
+  const idxStr = document.getElementById('mCatOrigName').value;
+  const name = document.getElementById('mCatName').value.trim();
+  const kwText = document.getElementById('mCatKeywords').value.trim();
+
+  if (!name) { toast('카테고리 이름을 입력해 주세요', 'error'); return; }
+  if (!kwText) { toast('키워드를 입력해 주세요', 'error'); return; }
+
+  const keywords = kwText.split(',').map(k => k.trim()).filter(Boolean);
+  if (!keywords.length) { toast('유효한 키워드를 입력해 주세요', 'error'); return; }
+
+  if (idxStr !== '') {
+    // 수정
+    CATEGORY_RULES[parseInt(idxStr)] = { name, keywords };
+  } else {
+    // 추가
+    if (CATEGORY_RULES.some(r => r.name === name)) { toast('이미 존재하는 카테고리 이름입니다', 'error'); return; }
+    CATEGORY_RULES.push({ name, keywords });
+  }
+
+  try {
+    await saveCategoryRules();
+    closeModal('modalAddCategory');
+    renderCatMgmt();
+    updateCatFilterOptions();
+    toast(`카테고리가 저장되었습니다`, 'success');
+  } catch(e) { toast('저장 중 오류가 발생했습니다', 'error'); }
+}
+
+async function deleteCategory(idx) {
+  const name = CATEGORY_RULES[idx].name;
+  confirmDelete(`"${name}" 카테고리를 삭제합니다. 기존에 이 카테고리로 분류된 질문은 변경되지 않습니다.`, async () => {
+    CATEGORY_RULES.splice(idx, 1);
+    await saveCategoryRules();
+    renderCatMgmt();
+    updateCatFilterOptions();
+    toast('카테고리가 삭제되었습니다', 'success');
+  });
+}
+
+function updateCatFilterOptions() {
+  const sel = document.getElementById('filterCat');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">전체 카테고리</option>' +
+    CATEGORY_RULES.map(r => `<option ${r.name===cur?'selected':''}>${esc(r.name)}</option>`).join('') +
+    '<option ' + ('기타'===cur?'selected':'') + '>기타</option>';
 }
 
 // ═══════════════════════════════════════════════════
@@ -2017,39 +2176,53 @@ async function downloadExcelByTopic(topicId, topicTitle) {
     set(row, 2, '질문내용');
     row++;
 
-    // ── 교육생별 그룹핑 ──
-    // 이름+부서 기준으로 그룹핑
-    const grouped = {};
+    // ── 카테고리별 그룹핑 ──
+    const catOrder = [...CATEGORY_RULES.map(r => r.name), '기타'];
+    const byCategory = {};
+    catOrder.forEach(cat => { byCategory[cat] = []; });
     qs.forEach(q => {
-      const key = `${q.name}||${q.dept}`;
-      if (!grouped[key]) grouped[key] = { name: q.name, dept: q.dept, questions: [] };
-      grouped[key].questions.push(q.question);
+      const cat = q.category || '기타';
+      if (!byCategory[cat]) byCategory[cat] = [];
+      byCategory[cat].push(q);
     });
 
-    const entries = Object.values(grouped);
     const merges = [];
     let num = 1;
 
-    entries.forEach(entry => {
-      const qCount = entry.questions.length;
-      const startRow = row;
+    catOrder.forEach(cat => {
+      const catQs = byCategory[cat];
+      if (!catQs.length) return;
 
-      entry.questions.forEach((qText, qi) => {
-        // 구분번호 — 첫 질문에만 값, 나머지는 병합용 빈칸
-        set(row, 0, qi === 0 ? num : '');
-        // 부서/성함 — 첫 질문에만 값
-        set(row, 1, qi === 0 ? `${entry.dept}\n${entry.name}` : '');
-        // 질문내용 — Q1, Q2... 번호 붙이기
-        set(row, 2, qCount > 1 ? `Q${qi+1}. ${qText}` : qText);
-        row++;
+      // 카테고리 헤더 행
+      const catHeaderRow = row;
+      set(row, 0, cat);
+      set(row, 1, '');
+      set(row, 2, '');
+      row++;
+
+      // 카테고리 내 교육생별 그룹핑
+      const grouped = {};
+      catQs.forEach(q => {
+        const key = `${q.name}||${q.dept}`;
+        if (!grouped[key]) grouped[key] = { name: q.name, dept: q.dept, questions: [] };
+        grouped[key].questions.push(q.question);
       });
 
-      // 셀 병합: 구분번호, 부서/성함 (여러 질문인 경우)
-      if (qCount > 1) {
-        merges.push({ s: { r: startRow, c: 0 }, e: { r: row-1, c: 0 } }); // 구분
-        merges.push({ s: { r: startRow, c: 1 }, e: { r: row-1, c: 1 } }); // 부서/성함
-      }
-      num++;
+      Object.values(grouped).forEach(entry => {
+        const qCount = entry.questions.length;
+        const startRow = row;
+        entry.questions.forEach((qText, qi) => {
+          set(row, 0, qi === 0 ? num : '');
+          set(row, 1, qi === 0 ? `${entry.dept}\n${entry.name}` : '');
+          set(row, 2, qCount > 1 ? `Q${qi+1}. ${qText}` : qText);
+          row++;
+        });
+        if (qCount > 1) {
+          merges.push({ s: { r: startRow, c: 0 }, e: { r: row-1, c: 0 } });
+          merges.push({ s: { r: startRow, c: 1 }, e: { r: row-1, c: 1 } });
+        }
+        num++;
+      });
     });
 
     ws['!merges'] = merges;
@@ -2228,6 +2401,7 @@ function switchAdminTab(tab) {
   if (tab === 'roster') renderRoster();
   if (tab === 'schedule') renderSchedule();
   if (tab === 'cohorts') renderCohorts();
+  if (tab === 'catmgmt') renderCatMgmt();
 }
 
 // ═══════════════════════════════════════════════════
@@ -2276,6 +2450,7 @@ function formatDateFile() {
 //  INIT
 // ═══════════════════════════════════════════════════
 loadAdminPassword(); // Firebase에서 비밀번호 먼저 로드
+loadCategoryRules(); // 카테고리 규칙 로드
 loadTopics();
 </script>
 </body>

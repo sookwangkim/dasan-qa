@@ -2220,16 +2220,6 @@ async function renderSchedule() {
   `;
 }
 
-async function openEditRoster() {
-  const topicId = document.getElementById('rosterTopicFilter').value;
-  if (!topicId) return;
-  const members = await fetchRoster(topicId);
-  const text = members.map(m => `${m.name}/${m.dept}${m.joinDate ? '/'+m.joinDate : ''}`).join('\n');
-  document.getElementById('mRosterTopic').value = topicId;
-  document.getElementById('mRosterText').value = text;
-  openModal('modalRoster');
-}
-
 function switchAdminTab(tab) {
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));

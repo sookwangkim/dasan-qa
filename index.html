@@ -1765,8 +1765,14 @@ async function saveRoster() {
 
 async function fetchAllCohorts() {
   if (useFirebase) {
-    const snap = await db.collection('cohorts').orderBy('name').get();
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    try {
+      const snap = await db.collection('cohorts').get();
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a,b) => a.name.localeCompare(b.name));
+    } catch(e) {
+      console.error('fetchAllCohorts error:', e);
+      return [];
+    }
   }
   const cohorts = JSON.parse(localStorage.getItem('eq_cohorts') || '{}');
   return Object.entries(cohorts).map(([id, v]) => ({ id, ...v })).sort((a,b)=>a.name.localeCompare(b.name));
@@ -1774,8 +1780,13 @@ async function fetchAllCohorts() {
 
 async function fetchCohort(cohortId) {
   if (useFirebase) {
-    const doc = await db.collection('cohorts').doc(cohortId).get();
-    return doc.exists ? { id: doc.id, ...doc.data() } : null;
+    try {
+      const doc = await db.collection('cohorts').doc(cohortId).get();
+      return doc.exists ? { id: doc.id, ...doc.data() } : null;
+    } catch(e) {
+      console.error('fetchCohort error:', e);
+      return null;
+    }
   }
   const cohorts = JSON.parse(localStorage.getItem('eq_cohorts') || '{}');
   return cohorts[cohortId] ? { id: cohortId, ...cohorts[cohortId] } : null;

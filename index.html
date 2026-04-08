@@ -1718,15 +1718,41 @@ function openNewRoster() {
 }
 
 async function openEditRoster(cohortId) {
-  const cohort = await fetchCohort(cohortId);
-  if (!cohort) return;
-  document.getElementById('modalRosterTitle').textContent = '✏️ 기수 명단 수정';
-  document.getElementById('mRosterCohortId').value = cohortId;
-  document.getElementById('mRosterCohortName').value = cohort.name;
-  document.getElementById('mRosterCohortName').readOnly = false;
-  const text = cohort.members.map(m => `${m.name}/${m.dept}${m.joinDate?'/'+m.joinDate:''}`).join('\n');
-  document.getElementById('mRosterText').value = text;
-  openModal('modalRoster');
+  try {
+    // Firebase 실패 시 로컬에서도 찾아보기
+    let cohort = null;
+    if (useFirebase) {
+      try {
+        const doc = await db.collection('cohorts').doc(cohortId).get();
+        if (doc.exists) cohort = { id: doc.id, ...doc.data() };
+      } catch(e) {
+        console.warn('Firebase fetchCohort 실패, 로컬 시도:', e);
+      }
+    }
+    // 로컬 폴백
+    if (!cohort) {
+      const cohorts = JSON.parse(localStorage.getItem('eq_cohorts') || '{}');
+      if (cohorts[cohortId]) cohort = { id: cohortId, ...cohorts[cohortId] };
+    }
+    // allCohorts 캐시에서도 찾기
+    if (!cohort) {
+      const cached = await fetchAllCohorts();
+      cohort = cached.find(c => c.id === cohortId) || null;
+    }
+
+    if (!cohort) { toast('기수 데이터를 불러올 수 없습니다', 'error'); return; }
+
+    document.getElementById('modalRosterTitle').textContent = '✏️ 기수 명단 수정';
+    document.getElementById('mRosterCohortId').value = cohortId;
+    document.getElementById('mRosterCohortName').value = cohort.name;
+    document.getElementById('mRosterCohortName').readOnly = false;
+    const text = (cohort.members || []).map(m => `${m.name}/${m.dept}${m.joinDate?'/'+m.joinDate:''}`).join('\n');
+    document.getElementById('mRosterText').value = text;
+    openModal('modalRoster');
+  } catch(e) {
+    console.error('openEditRoster error:', e);
+    toast('수정 중 오류가 발생했습니다: ' + e.message, 'error');
+  }
 }
 
 async function saveRoster() {

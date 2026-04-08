@@ -1386,9 +1386,9 @@ async function renderNoticeBoard() {
   if (!el) return;
   if (!text) { el.innerHTML = ''; return; }
   el.innerHTML = `
-    <div style="background:rgba(192,24,28,0.05);border:1px solid rgba(192,24,28,0.2);border-radius:var(--radius2);padding:14px 18px;display:flex;align-items:flex-start;gap:10px">
-      <span style="font-size:16px;flex-shrink:0">📢</span>
-      <div style="font-size:14px;color:var(--text);line-height:1.7;flex:1;white-space:pre-wrap">${esc(text)}</div>
+    <div style="background:rgba(192,24,28,0.05);border:1px solid rgba(192,24,28,0.2);border-radius:var(--radius2);padding:16px 20px;display:flex;align-items:flex-start;gap:12px">
+      <span style="font-size:20px;flex-shrink:0">📢</span>
+      <div style="font-size:16px;font-weight:700;color:var(--text);line-height:1.7;flex:1;white-space:pre-wrap">${esc(text)}</div>
     </div>
   `;
 }
@@ -1570,6 +1570,7 @@ async function renderTopicList() {
                       <span class="q-item-cat cat-${q.category}">${q.category}</span>
                       <div class="topic-q-actions">
                         <span style="color:var(--text3);font-size:11px;font-family:'DM Mono',monospace">${formatDate(q.createdAt)}</span>
+                        <button class="btn btn-danger btn-sm admin-only" onclick="deleteQuestion('${q.id}')">🗑</button>
                       </div>
                     </div>
                     <div class="topic-q-text">${esc(q.question)}</div>
@@ -1602,6 +1603,7 @@ async function renderTopicList() {
                   <span class="q-item-cat cat-${q.category}">${q.category}</span>
                   <div class="topic-q-actions">
                     <span style="color:var(--text3);font-size:11px;font-family:'DM Mono',monospace">${formatDate(q.createdAt)}</span>
+                    <button class="btn btn-danger btn-sm admin-only" onclick="deleteQuestion('${q.id}')">🗑</button>
                   </div>
                 </div>
                 <div class="topic-q-text">${esc(q.question)}</div>
@@ -1965,27 +1967,93 @@ async function createTopic() {
 async function downloadExcelByTopic(topicId, topicTitle) {
   const qs = allQuestions.filter(q => q.topicId === topicId);
   if (!qs.length) { toast('해당 주제에 등록된 질문이 없습니다', 'error'); return; }
+  if (typeof XLSX === 'undefined') { downloadCSV(qs); return; }
 
-  if (typeof XLSX === 'undefined') {
-    downloadCSV(qs);
-    return;
-  }
   try {
-    const rows = qs.map(q => ({
-      '교육주제': q.topicTitle,
-      '카테고리': q.category,
-      '이름/부서': `${q.name} / ${q.dept}`,
-      '질문내용': q.question,
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    ws['!cols'] = [{ wch: 30 }, { wch: 12 }, { wch: 18 }, { wch: 60 }];
+    const topic = allTopics.find(t => t.id === topicId);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, topicTitle.slice(0, 28));
+    const ws = {};
+
+    // 헬퍼: 셀 주소
+    const addr = (r, c) => XLSX.utils.encode_cell({ r, c });
+    const set = (r, c, v, opts) => {
+      ws[addr(r, c)] = { v, t: typeof v === 'number' ? 'n' : 's', ...opts };
+    };
+
+    let row = 0;
+
+    // ── 헤더 정보 ──
+    set(row, 0, '강의명/강사');
+    set(row, 1, `${esc2(topic?.title || '')} / ${esc2(topic?.instructor || '')}`);
+    row++;
+    set(row, 0, '강의일');
+    set(row, 1, topic?.date ? formatDateKo(topic.date) : '-');
+    row++;
+    row++; // 빈 줄
+
+    // ── 컬럼 헤더 ──
+    set(row, 0, '구분');
+    set(row, 1, '부서/성함');
+    set(row, 2, '질문내용');
+    row++;
+
+    // ── 교육생별 그룹핑 ──
+    // 이름+부서 기준으로 그룹핑
+    const grouped = {};
+    qs.forEach(q => {
+      const key = `${q.name}||${q.dept}`;
+      if (!grouped[key]) grouped[key] = { name: q.name, dept: q.dept, questions: [] };
+      grouped[key].questions.push(q.question);
+    });
+
+    const entries = Object.values(grouped);
+    const merges = [];
+    let num = 1;
+
+    entries.forEach(entry => {
+      const qCount = entry.questions.length;
+      const startRow = row;
+
+      entry.questions.forEach((qText, qi) => {
+        // 구분번호 — 첫 질문에만 값, 나머지는 병합용 빈칸
+        set(row, 0, qi === 0 ? num : '');
+        // 부서/성함 — 첫 질문에만 값
+        set(row, 1, qi === 0 ? `${entry.dept}\n${entry.name}` : '');
+        // 질문내용 — Q1, Q2... 번호 붙이기
+        set(row, 2, qCount > 1 ? `Q${qi+1}. ${qText}` : qText);
+        row++;
+      });
+
+      // 셀 병합: 구분번호, 부서/성함 (여러 질문인 경우)
+      if (qCount > 1) {
+        merges.push({ s: { r: startRow, c: 0 }, e: { r: row-1, c: 0 } }); // 구분
+        merges.push({ s: { r: startRow, c: 1 }, e: { r: row-1, c: 1 } }); // 부서/성함
+      }
+      num++;
+    });
+
+    ws['!merges'] = merges;
+    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: row-1, c: 2 } });
+    ws['!cols'] = [{ wch: 6 }, { wch: 16 }, { wch: 80 }];
+
+    const sheetName = topicTitle.slice(0, 28);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
     XLSX.writeFile(wb, `교육질문_${topicTitle.slice(0,20)}_${formatDateFile()}.xlsx`);
-    toast(`엑셀 다운로드 완료 (${qs.length}건)`, 'success');
+    toast(`엑셀 다운로드 완료 (${entries.length}명, ${qs.length}개 질문)`, 'success');
   } catch(e) {
+    console.error(e);
     downloadCSV(qs);
   }
+}
+
+function esc2(s) { return String(s || ''); }
+
+function formatDateKo(dateStr) {
+  if (!dateStr) return '-';
+  const d = new Date(dateStr);
+  if (isNaN(d)) return dateStr;
+  const days = ['일','월','화','수','목','금','토'];
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}(${days[d.getDay()]})`;
 }
 
 // ═══════════════════════════════════════════════════

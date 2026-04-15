@@ -1171,8 +1171,11 @@ async function goToForm() {
 
   const allMembers = cohorts.flatMap(c => c.members);
 
-  // 익명 질문 바로 표시
-  renderAnonQuestions();
+  // 익명 질문 — 처음엔 숨김 (질문 등록 후 공개)
+  const anonEl = document.getElementById('anonQuestions');
+  const anonSection = anonEl?.parentElement;
+  if (anonEl) anonEl.innerHTML = '';
+  if (anonSection) anonSection.style.display = 'none';
 
   if (allMembers.length) {
     manual.style.display = 'none';
@@ -1438,7 +1441,7 @@ async function submitQuestion() {
   try {
     await saveQuestion(data);
     allQuestions = await fetchQuestions();
-    toast('질문이 등록되었습니다 ✓', 'success');
+    toast('질문이 등록되었습니다 ✓ 다른 질문도 확인해보세요!', 'success');
     if (isDropdown) sel.value = '';
     else {
       document.getElementById('fName').value = '';
@@ -1446,6 +1449,12 @@ async function submitQuestion() {
     }
     document.getElementById('fQuestion').value = '';
     hideSimilarity();
+
+    // 질문 등록 후 익명 질문 섹션 공개
+    const anonEl = document.getElementById('anonQuestions');
+    const anonSection = anonEl?.parentElement;
+    if (anonSection) anonSection.style.display = 'block';
+    renderAnonQuestions();
   } catch(e) {
     toast('등록 중 오류가 발생했습니다', 'error');
     console.error(e);

@@ -616,10 +616,17 @@
     <!-- ══════════════ PAGE: TRAINEE ══════════════ -->
     <div class="page active" id="page-trainee">
 
+      <!-- 공지사항 -->
+      <div id="traineeNotice" style="margin-bottom:16px"></div>
+
       <!-- Step 1: Topic selection -->
       <div id="step-select-topic">
+
+        <!-- 교육 일정 미리보기 -->
+        <div id="traineeSchedule" style="margin-bottom:28px"></div>
+
         <div class="topic-header">
-          <h2>교육 주제 선택</h2>
+          <h2>질문하기</h2>
           <p>질문을 등록할 교육 세션을 선택하세요</p>
         </div>
         <div class="topics-grid" id="topicsGrid">
@@ -672,6 +679,13 @@
           <button class="btn btn-green" style="width:100%" onclick="submitQuestion()">
             질문 등록하기
           </button>
+        </div>
+
+        <!-- 이 주제 다른 질문 익명으로 보기 -->
+        <div style="margin-top:24px">
+          <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:10px">💬 이 주제에 등록된 다른 질문들</div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:8px">이름과 부서는 익명으로 표시됩니다</div>
+          <div id="anonQuestions"></div>
         </div>
       </div>
     </div>
@@ -765,8 +779,8 @@
             <option value="">주제 선택 (등록 현황 확인용)</option>
           </select>
           <div style="display:flex;gap:6px">
-            <button class="btn btn-ghost btn-sm" onclick="switchAdminTab('cohorts');document.querySelectorAll('.admin-tab')[3].click()">기수 관리 →</button>
-            <button class="btn btn-primary btn-sm" onclick="openNewRoster()">+ 기수 명단 등록</button>
+            <button class="btn btn-ghost btn-sm" onclick="switchAdminTab('cohorts');document.querySelectorAll('.admin-tab')[4].click()">기수 관리 →</button>
+            <button class="btn btn-primary btn-sm admin-only" onclick="openNewRoster()">+ 기수 명단 등록</button>
           </div>
         </div>
         <div id="rosterList"></div>
@@ -1107,7 +1121,10 @@ async function loadTopics() {
   const grid = document.getElementById('topicsGrid');
   grid.innerHTML = '<div class="loading"><div class="spinner"></div> 주제 불러오는 중...</div>';
   allTopics = await fetchTopics();
+  allQuestions = await fetchQuestions();
   renderTopicsGrid();
+  renderTraineeNotice();
+  renderTraineeSchedule();
 }
 
 function renderTopicsGrid() {
@@ -1154,8 +1171,10 @@ async function goToForm() {
 
   const allMembers = cohorts.flatMap(c => c.members);
 
+  // 익명 질문 바로 표시
+  renderAnonQuestions();
+
   if (allMembers.length) {
-    sel.style.display = '';
     manual.style.display = 'none';
     sel.innerHTML = '<option value="">이름을 선택하세요</option>' +
       cohorts.map(c => `
@@ -1529,7 +1548,87 @@ async function loadAdminData() {
 }
 
 // ═══════════════════════════════════════════════════
-//  NOTICE BOARD
+//  TRAINEE — 공지사항, 일정 미리보기, 익명 질문
+// ═══════════════════════════════════════════════════
+async function renderTraineeNotice() {
+  const el = document.getElementById('traineeNotice');
+  if (!el) return;
+  const text = await fetchNotice();
+  if (!text) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <div style="background:rgba(192,24,28,0.05);border:1px solid rgba(192,24,28,0.2);border-radius:var(--radius2);padding:16px 20px;display:flex;align-items:flex-start;gap:12px">
+      <span style="font-size:20px;flex-shrink:0">📢</span>
+      <div style="font-size:16px;font-weight:700;color:var(--text);line-height:1.7;flex:1;white-space:pre-wrap">${esc(text)}</div>
+    </div>
+  `;
+}
+
+async function renderTraineeSchedule() {
+  const el = document.getElementById('traineeSchedule');
+  if (!el || !allTopics.length) { if(el) el.innerHTML = ''; return; }
+
+  const sorted = [...allTopics].sort((a, b) => {
+    if (!a.date) return 1;
+    if (!b.date) return -1;
+    return new Date(a.date) - new Date(b.date);
+  });
+
+  el.innerHTML = `
+    <div style="margin-bottom:4px">
+      <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:10px">📅 교육 일정</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${sorted.map(t => {
+          const isPast = t.date && new Date(t.date) < new Date(new Date().toDateString());
+          return `
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:${isPast ? 'var(--surface2)' : 'white'};border:1px solid var(--border);border-radius:var(--radius);opacity:${isPast ? '0.6' : '1'}">
+            <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text3);white-space:nowrap;min-width:80px">${t.date || '-'}</span>
+            <span style="font-weight:600;font-size:13px;flex:1">${esc(t.title)}</span>
+            ${t.instructor ? `<span style="font-size:12px;color:var(--text3)">👤 ${esc(t.instructor)}</span>` : ''}
+            ${isPast ? `<span style="font-size:11px;color:var(--text3)">완료</span>` : `<span style="font-size:11px;font-weight:700;color:var(--accent)">예정</span>`}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function toggleAnonQuestions() {
+  const el = document.getElementById('anonQuestions');
+  const btn = document.getElementById('btnToggleAnon');
+  if (el.style.display === 'none') {
+    el.style.display = 'block';
+    btn.textContent = '접기 ▲';
+    renderAnonQuestions();
+  } else {
+    el.style.display = 'none';
+    btn.textContent = '펼쳐보기 ▼';
+  }
+}
+
+function renderAnonQuestions() {
+  const el = document.getElementById('anonQuestions');
+  if (!selectedTopic) return;
+  const qs = allQuestions.filter(q => q.topicId === selectedTopic.id);
+  if (!qs.length) {
+    el.innerHTML = '<div style="font-size:13px;color:var(--text3);padding:12px 0">아직 등록된 질문이 없습니다.</div>';
+    return;
+  }
+  el.innerHTML = `
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px">이름과 부서는 익명으로 표시됩니다</div>
+    <div class="q-list">
+      ${qs.map((q, i) => `
+        <div class="q-item" style="padding:10px 14px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-size:12px;font-weight:700;color:var(--text3)">${i+1}</span>
+            <span class="q-item-cat cat-${q.category}">${q.category}</span>
+            <span style="font-size:11px;color:var(--text3);margin-left:auto">${formatDate(q.createdAt)}</span>
+          </div>
+          <div class="q-item-text">${esc(q.question)}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
 // ═══════════════════════════════════════════════════
 async function fetchNotice() {
   if (useFirebase) {

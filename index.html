@@ -2581,12 +2581,7 @@ async function renderSchedule() {
   `;
 }
 
-function switchTraineeTab(tab) {
-  document.querySelectorAll('#page-trainee .admin-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('#page-trainee .admin-panel').forEach(p => p.classList.remove('active'));
-  event.target.classList.add('active');
-  document.getElementById('trainee-panel-' + tab).classList.add('active');
-}
+function switchAdminTab(tab) {
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
   event.target.classList.add('active');
@@ -2595,6 +2590,13 @@ function switchTraineeTab(tab) {
   if (tab === 'schedule') renderSchedule();
   if (tab === 'cohorts') renderCohorts().then(() => applyRoleUI());
   if (tab === 'catmgmt') { renderCatMgmt(); applyRoleUI(); }
+}
+
+function switchTraineeTab(tab) {
+  document.querySelectorAll('#page-trainee .admin-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('#page-trainee .admin-panel').forEach(p => p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('trainee-panel-' + tab).classList.add('active');
 }
 
 // ═══════════════════════════════════════════════════

@@ -619,74 +619,85 @@
       <!-- 공지사항 -->
       <div id="traineeNotice" style="margin-bottom:16px"></div>
 
-      <!-- Step 1: Topic selection -->
-      <div id="step-select-topic">
-
-        <!-- 교육 일정 미리보기 -->
-        <div id="traineeSchedule" style="margin-bottom:28px"></div>
-
-        <div class="topic-header">
-          <h2>질문하기</h2>
-          <p>질문을 등록할 교육 세션을 선택하세요</p>
-        </div>
-        <div class="topics-grid" id="topicsGrid">
-          <div class="loading"><div class="spinner"></div> 주제 불러오는 중...</div>
-        </div>
-        <button class="btn btn-primary" onclick="goToForm()" id="btnSelectTopic" disabled>
-          선택한 주제로 질문 등록 →
-        </button>
+      <!-- 탭 -->
+      <div class="admin-tabs">
+        <button class="admin-tab active" onclick="switchTraineeTab('schedule')">교육일정·명단</button>
+        <button class="admin-tab" onclick="switchTraineeTab('question')">질문하기</button>
       </div>
 
-      <!-- Step 2: Question form -->
-      <div id="step-question-form" style="display:none">
-        <div class="breadcrumb">
-          <span class="crumb" onclick="backToTopics()">← 주제 선택</span>
-          <span class="sep">/</span>
-          <span class="current" id="bcTopicName">-</span>
-        </div>
+      <!-- 탭: 교육일정·명단 -->
+      <div id="trainee-panel-schedule" class="admin-panel active">
+        <div id="traineeSchedule"></div>
+      </div>
 
-        <div class="form-card">
-          <h3>질문 입력 <span class="badge" id="formTopicBadge">-</span></h3>
+      <!-- 탭: 질문하기 -->
+      <div id="trainee-panel-question" class="admin-panel">
 
-          <div class="field">
-            <label>이름 / 부서 *</label>
-            <select id="fNameSelect" onchange="onNameSelect()" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:9px 12px;color:var(--text);font-size:14px;font-family:inherit;outline:none;transition:border-color 0.15s;">
-              <option value="">이름을 선택하세요</option>
-            </select>
-            <!-- 명단 없을 때 직접 입력 폴백 -->
-            <div id="fNameManual" style="display:none;margin-top:8px">
-              <div class="field-row" style="margin-bottom:0">
-                <div class="field" style="margin-bottom:0">
-                  <input type="text" id="fName" placeholder="홍길동" maxlength="20">
-                </div>
-                <div class="field" style="margin-bottom:0">
-                  <input type="text" id="fDept" placeholder="인사팀" maxlength="30">
-                </div>
-              </div>
-              <div style="font-size:11px;color:var(--text3);margin-top:4px">※ 명단이 등록되지 않아 직접 입력합니다</div>
-            </div>
+        <!-- Step 1: Topic selection -->
+        <div id="step-select-topic">
+          <div class="topic-header">
+            <h2>질문하기</h2>
+            <p>질문을 등록할 교육 세션을 선택하세요</p>
           </div>
-
-          <div class="field">
-            <label>질문 내용 *</label>
-            <textarea id="fQuestion" placeholder="• 이 내용 중 실제 업무에서 어떻게 적용될지 궁금한 부분은?&#10;• 이해는 됐지만 왜 이렇게 하는지 이유를 모르겠는 부분은?&#10;• 내가 이 상황이라면 어떻게 해야 하는지?" maxlength="500" oninput="onQuestionInput()"></textarea>
-            <div class="similarity-alert" id="similarityAlert">
-              ⚠️ <strong>유사한 질문 내용이 이미 입력되어 있습니다.</strong><br>
-              <span id="similarText"></span>
-            </div>
+          <div class="topics-grid" id="topicsGrid">
+            <div class="loading"><div class="spinner"></div> 주제 불러오는 중...</div>
           </div>
-
-          <button class="btn btn-green" style="width:100%" onclick="submitQuestion()">
-            질문 등록하기
+          <button class="btn btn-primary" onclick="goToForm()" id="btnSelectTopic" disabled>
+            선택한 주제로 질문 등록 →
           </button>
         </div>
 
-        <!-- 이 주제 다른 질문 익명으로 보기 -->
-        <div style="margin-top:24px">
-          <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:10px">💬 이 주제에 등록된 다른 질문들</div>
-          <div style="font-size:11px;color:var(--text3);margin-bottom:8px">이름과 부서는 익명으로 표시됩니다</div>
-          <div id="anonQuestions"></div>
+        <!-- Step 2: Question form -->
+        <div id="step-question-form" style="display:none">
+          <div class="breadcrumb">
+            <span class="crumb" onclick="backToTopics()">← 주제 선택</span>
+            <span class="sep">/</span>
+            <span class="current" id="bcTopicName">-</span>
+          </div>
+
+          <div class="form-card">
+            <h3>질문 입력 <span class="badge" id="formTopicBadge">-</span></h3>
+
+            <div class="field">
+              <label>이름 / 부서 *</label>
+              <select id="fNameSelect" onchange="onNameSelect()" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:9px 12px;color:var(--text);font-size:14px;font-family:inherit;outline:none;transition:border-color 0.15s;">
+                <option value="">이름을 선택하세요</option>
+              </select>
+              <div id="fNameManual" style="display:none;margin-top:8px">
+                <div class="field-row" style="margin-bottom:0">
+                  <div class="field" style="margin-bottom:0">
+                    <input type="text" id="fName" placeholder="홍길동" maxlength="20">
+                  </div>
+                  <div class="field" style="margin-bottom:0">
+                    <input type="text" id="fDept" placeholder="인사팀" maxlength="30">
+                  </div>
+                </div>
+                <div style="font-size:11px;color:var(--text3);margin-top:4px">※ 명단이 등록되지 않아 직접 입력합니다</div>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>질문 내용 *</label>
+              <textarea id="fQuestion" placeholder="• 이 내용 중 실제 업무에서 어떻게 적용될지 궁금한 부분은?&#10;• 이해는 됐지만 왜 이렇게 하는지 이유를 모르겠는 부분은?&#10;• 내가 이 상황이라면 어떻게 해야 하는지?" maxlength="500" oninput="onQuestionInput()"></textarea>
+              <div class="similarity-alert" id="similarityAlert">
+                ⚠️ <strong>유사한 질문 내용이 이미 입력되어 있습니다.</strong><br>
+                <span id="similarText"></span>
+              </div>
+            </div>
+
+            <button class="btn btn-green" style="width:100%" onclick="submitQuestion()">
+              질문 등록하기
+            </button>
+          </div>
+
+          <!-- 이 주제 다른 질문 익명으로 보기 -->
+          <div style="margin-top:24px;display:none" id="anonSection">
+            <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:10px">💬 이 주제에 등록된 다른 질문들</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:8px">이름과 부서는 익명으로 표시됩니다</div>
+            <div id="anonQuestions"></div>
+          </div>
         </div>
+
       </div>
     </div>
 
@@ -859,12 +870,16 @@
   <div class="modal">
     <h3>📢 공지사항 편집</h3>
     <div class="field">
-      <label>공지 내용</label>
-      <textarea id="mNoticeText" style="min-height:120px" placeholder="교육생·강사에게 전달할 공지사항을 입력하세요&#10;예: 5월 1일까지 질문을 등록해 주세요."></textarea>
+      <label>🎓 교육생용 공지</label>
+      <textarea id="mNoticeTrainee" style="min-height:90px" placeholder="교육생에게 전달할 공지사항&#10;예: 5월 1일까지 질문을 등록해 주세요."></textarea>
+    </div>
+    <div class="field">
+      <label>👩‍🏫 강사용 공지</label>
+      <textarea id="mNoticeTeacher" style="min-height:90px" placeholder="강사에게 전달할 공지사항&#10;예: 질문 답변 시 교육생 이름은 익명으로 처리해 주세요."></textarea>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modalNotice')">취소</button>
-      <button class="btn btn-danger btn-sm" onclick="clearNotice()" style="margin-right:auto">공지 삭제</button>
+      <button class="btn btn-danger btn-sm" onclick="clearNotice()" style="margin-right:auto">전체 삭제</button>
       <button class="btn btn-primary" onclick="saveNotice()">저장</button>
     </div>
   </div>
@@ -1172,10 +1187,10 @@ async function goToForm() {
   const allMembers = cohorts.flatMap(c => c.members);
 
   // 익명 질문 — 처음엔 숨김 (질문 등록 후 공개)
-  const anonEl = document.getElementById('anonQuestions');
-  const anonSection = anonEl?.parentElement;
-  if (anonEl) anonEl.innerHTML = '';
+  const anonSection = document.getElementById('anonSection');
   if (anonSection) anonSection.style.display = 'none';
+  const anonEl = document.getElementById('anonQuestions');
+  if (anonEl) anonEl.innerHTML = '';
 
   if (allMembers.length) {
     manual.style.display = 'none';
@@ -1451,8 +1466,7 @@ async function submitQuestion() {
     hideSimilarity();
 
     // 질문 등록 후 익명 질문 섹션 공개
-    const anonEl = document.getElementById('anonQuestions');
-    const anonSection = anonEl?.parentElement;
+    const anonSection = document.getElementById('anonSection');
     if (anonSection) anonSection.style.display = 'block';
     renderAnonQuestions();
   } catch(e) {
@@ -1574,8 +1588,10 @@ async function renderTraineeNotice() {
 
 async function renderTraineeSchedule() {
   const el = document.getElementById('traineeSchedule');
-  if (!el || !allTopics.length) { if(el) el.innerHTML = ''; return; }
+  if (!el) return;
+  if (!allTopics.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📅</div><p>등록된 교육 일정이 없습니다</p></div>'; return; }
 
+  const cohorts = await fetchAllCohorts();
   const sorted = [...allTopics].sort((a, b) => {
     if (!a.date) return 1;
     if (!b.date) return -1;
@@ -1583,20 +1599,61 @@ async function renderTraineeSchedule() {
   });
 
   el.innerHTML = `
-    <div style="margin-bottom:4px">
-      <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:10px">📅 교육 일정</div>
-      <div style="display:flex;flex-direction:column;gap:6px">
-        ${sorted.map(t => {
-          const isPast = t.date && new Date(t.date) < new Date(new Date().toDateString());
-          return `
-          <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:${isPast ? 'var(--surface2)' : 'white'};border:1px solid var(--border);border-radius:var(--radius);opacity:${isPast ? '0.6' : '1'}">
-            <span style="font-size:12px;font-family:'DM Mono',monospace;color:var(--text3);white-space:nowrap;min-width:80px">${t.date || '-'}</span>
-            <span style="font-weight:600;font-size:13px;flex:1">${esc(t.title)}</span>
-            ${t.instructor ? `<span style="font-size:12px;color:var(--text3)">👤 ${esc(t.instructor)}</span>` : ''}
-            ${isPast ? `<span style="font-size:11px;color:var(--text3)">완료</span>` : `<span style="font-size:11px;font-weight:700;color:var(--accent)">예정</span>`}
-          </div>`;
-        }).join('')}
-      </div>
+    <div style="margin-bottom:28px">
+      <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid var(--accent);display:inline-block">📅 교육 일정</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="background:var(--accent);color:white">
+            <th style="padding:10px 12px;text-align:left;font-weight:600;border:1px solid rgba(255,255,255,0.2)">강의 제목</th>
+            <th style="padding:10px 12px;text-align:left;font-weight:600;border:1px solid rgba(255,255,255,0.2)">교육일</th>
+            <th style="padding:10px 12px;text-align:left;font-weight:600;border:1px solid rgba(255,255,255,0.2)">강의자</th>
+            <th style="padding:10px 12px;text-align:left;font-weight:600;border:1px solid rgba(255,255,255,0.2)">공지사항</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sorted.map((t, i) => `
+            <tr style="background:${i%2===0?'white':'#FFF8F8'}">
+              <td style="padding:9px 12px;border:1px solid var(--border);font-weight:600">${esc(t.title)}</td>
+              <td style="padding:9px 12px;border:1px solid var(--border);white-space:nowrap">${t.date || '-'}</td>
+              <td style="padding:9px 12px;border:1px solid var(--border);white-space:nowrap">${t.instructor ? esc(t.instructor) : '-'}</td>
+              <td style="padding:9px 12px;border:1px solid var(--border);color:var(--text2);font-size:12px">${t.notice ? esc(t.notice) : '-'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <div>
+      <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid var(--accent);display:inline-block">👥 교육생 명단</div>
+      ${!cohorts.length ? '<div class="empty-state"><div class="icon">📋</div><p>등록된 기수 명단이 없습니다</p></div>' : `
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px">
+        ${cohorts.map(c => `
+          <div style="border:1px solid var(--border);border-radius:var(--radius2);overflow:hidden">
+            <div style="background:var(--accent);color:white;padding:10px 14px;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:space-between">
+              <span>${esc(c.name)}</span>
+              <span style="font-size:11px;opacity:0.85;font-weight:500">${c.members.length}명</span>
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+              <thead>
+                <tr style="background:#FFF0F0">
+                  <th style="padding:7px 10px;text-align:center;font-weight:600;border-bottom:1px solid var(--border);color:var(--text2);width:36px">구분</th>
+                  <th style="padding:7px 10px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);color:var(--text2)">성명</th>
+                  <th style="padding:7px 10px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);color:var(--text2)">부서명</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${c.members.map((m, i) => `
+                  <tr style="background:${i%2===0?'white':'#FAFAFA'}">
+                    <td style="padding:7px 10px;text-align:center;border-bottom:1px solid var(--border2);color:var(--text3);font-family:'DM Mono',monospace">${i+1}</td>
+                    <td style="padding:7px 10px;border-bottom:1px solid var(--border2);font-weight:600">${esc(m.name)}</td>
+                    <td style="padding:7px 10px;border-bottom:1px solid var(--border2);color:var(--text2)">${esc(m.dept)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `).join('')}
+      </div>`}
     </div>
   `;
 }
@@ -1639,20 +1696,26 @@ function renderAnonQuestions() {
   `;
 }
 // ═══════════════════════════════════════════════════
+//  NOTICE — 교육생/강사 분리
+// ═══════════════════════════════════════════════════
 async function fetchNotice() {
   if (useFirebase) {
     const doc = await db.collection('config').doc('notice').get();
-    return doc.exists ? doc.data().text || '' : '';
+    if (!doc.exists) return { trainee: '', teacher: '' };
+    const d = doc.data();
+    // 구버전 호환 (text 필드만 있던 경우)
+    if (d.trainee !== undefined || d.teacher !== undefined) {
+      return { trainee: d.trainee || '', teacher: d.teacher || '' };
+    }
+    return { trainee: d.text || '', teacher: '' };
   }
-  return localStorage.getItem('eq_notice') || '';
+  const saved = localStorage.getItem('eq_notice');
+  if (!saved) return { trainee: '', teacher: '' };
+  try { return JSON.parse(saved); } catch { return { trainee: saved, teacher: '' }; }
 }
 
-async function renderNoticeBoard() {
-  const text = await fetchNotice();
-  const el = document.getElementById('noticeBoard');
-  if (!el) return;
-  if (!text) { el.innerHTML = ''; return; }
-  el.innerHTML = `
+function noticeBox(text) {
+  return `
     <div style="background:rgba(192,24,28,0.05);border:1px solid rgba(192,24,28,0.2);border-radius:var(--radius2);padding:16px 20px;display:flex;align-items:flex-start;gap:12px">
       <span style="font-size:20px;flex-shrink:0">📢</span>
       <div style="font-size:16px;font-weight:700;color:var(--text);line-height:1.7;flex:1;white-space:pre-wrap">${esc(text)}</div>
@@ -1660,32 +1723,50 @@ async function renderNoticeBoard() {
   `;
 }
 
+async function renderNoticeBoard() {
+  const el = document.getElementById('noticeBoard');
+  if (!el) return;
+  const { teacher } = await fetchNotice();
+  el.innerHTML = teacher ? noticeBox(teacher) : '';
+}
+
+async function renderTraineeNotice() {
+  const el = document.getElementById('traineeNotice');
+  if (!el) return;
+  const { trainee } = await fetchNotice();
+  el.innerHTML = trainee ? noticeBox(trainee) : '';
+}
+
 async function openNoticeModal() {
-  const text = await fetchNotice();
-  document.getElementById('mNoticeText').value = text;
+  const { trainee, teacher } = await fetchNotice();
+  document.getElementById('mNoticeTrainee').value = trainee;
+  document.getElementById('mNoticeTeacher').value = teacher;
   openModal('modalNotice');
 }
 
 async function saveNotice() {
-  const text = document.getElementById('mNoticeText').value.trim();
+  const trainee = document.getElementById('mNoticeTrainee').value.trim();
+  const teacher = document.getElementById('mNoticeTeacher').value.trim();
   if (useFirebase) {
-    await db.collection('config').doc('notice').set({ text });
+    await db.collection('config').doc('notice').set({ trainee, teacher });
   } else {
-    localStorage.setItem('eq_notice', text);
+    localStorage.setItem('eq_notice', JSON.stringify({ trainee, teacher }));
   }
   closeModal('modalNotice');
   await renderNoticeBoard();
+  await renderTraineeNotice();
   toast('공지사항이 저장되었습니다', 'success');
 }
 
 async function clearNotice() {
   if (useFirebase) {
-    await db.collection('config').doc('notice').set({ text: '' });
+    await db.collection('config').doc('notice').set({ trainee: '', teacher: '' });
   } else {
     localStorage.removeItem('eq_notice');
   }
   closeModal('modalNotice');
   await renderNoticeBoard();
+  await renderTraineeNotice();
   toast('공지사항이 삭제되었습니다', 'success');
 }
 
@@ -2500,7 +2581,12 @@ async function renderSchedule() {
   `;
 }
 
-function switchAdminTab(tab) {
+function switchTraineeTab(tab) {
+  document.querySelectorAll('#page-trainee .admin-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('#page-trainee .admin-panel').forEach(p => p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('trainee-panel-' + tab).classList.add('active');
+}
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
   event.target.classList.add('active');

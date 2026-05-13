@@ -2349,23 +2349,24 @@ async function downloadExcelByTopic(topicId, topicTitle) {
     const topic = allTopics.find(t => t.id === topicId);
     const wb = XLSX.utils.book_new();
     const ws = {};
+    const merges = [];
 
-    // 헬퍼: 셀 주소
     const addr = (r, c) => XLSX.utils.encode_cell({ r, c });
-    const set = (r, c, v, opts) => {
-      ws[addr(r, c)] = { v, t: typeof v === 'number' ? 'n' : 's', ...opts };
+    const set = (r, c, v) => {
+      ws[addr(r, c)] = { v, t: typeof v === 'number' ? 'n' : 's' };
     };
 
     let row = 0;
 
-    // ── 헤더 정보 ──
+    // ── 헤더: A:B 병합, 값은 C열 ──
     set(row, 0, '강의명/강사');
-    set(row, 1, `${esc2(topic?.title || '')} / ${esc2(topic?.instructor || '')}`);
+    set(row, 2, `${esc2(topic?.title || '')} / ${esc2(topic?.instructor || '')}`);
+    merges.push({ s: { r: row, c: 0 }, e: { r: row, c: 1 } });
     row++;
     set(row, 0, '강의일');
-    set(row, 1, topic?.date ? formatDateKo(topic.date) : '-');
+    set(row, 2, topic?.date ? formatDateKo(topic.date) : '-');
+    merges.push({ s: { r: row, c: 0 }, e: { r: row, c: 1 } });
     row++;
-    row++; // 빈 줄
 
     // ── 컬럼 헤더 ──
     set(row, 0, '구분');
@@ -2383,17 +2384,15 @@ async function downloadExcelByTopic(topicId, topicTitle) {
       byCategory[cat].push(q);
     });
 
-    const merges = [];
     let num = 1;
 
     catOrder.forEach(cat => {
       const catQs = byCategory[cat];
       if (!catQs.length) return;
 
-      // 카테고리 헤더 행
+      // 카테고리 헤더 행 — A:C 병합
       set(row, 0, cat);
-      set(row, 1, '');
-      set(row, 2, '');
+      merges.push({ s: { r: row, c: 0 }, e: { r: row, c: 2 } });
       row++;
 
       // 카테고리 내 교육생별 그룹핑
@@ -2423,7 +2422,7 @@ async function downloadExcelByTopic(topicId, topicTitle) {
 
     ws['!merges'] = merges;
     ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: row-1, c: 2 } });
-    ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 80 }];
+    ws['!cols'] = [{ wch: 12 }, { wch: 20 }, { wch: 80 }];
 
     const sheetName = topicTitle.slice(0, 28);
     XLSX.utils.book_append_sheet(wb, ws, sheetName);

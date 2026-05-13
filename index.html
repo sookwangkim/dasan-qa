@@ -1186,11 +1186,14 @@ async function goToForm() {
 
   const allMembers = cohorts.flatMap(c => c.members);
 
-  // 익명 질문 — 처음엔 숨김 (질문 등록 후 공개)
+  // 익명 질문 — localStorage에 등록 기록 있으면 바로 표시
   const anonSection = document.getElementById('anonSection');
-  if (anonSection) anonSection.style.display = 'none';
+  const registeredTopics = JSON.parse(localStorage.getItem('eq_registered_topics') || '[]');
+  const alreadyRegistered = registeredTopics.includes(selectedTopic.id);
+  if (anonSection) anonSection.style.display = alreadyRegistered ? 'block' : 'none';
   const anonEl = document.getElementById('anonQuestions');
   if (anonEl) anonEl.innerHTML = '';
+  if (alreadyRegistered) renderAnonQuestions();
 
   if (allMembers.length) {
     manual.style.display = 'none';
@@ -1465,7 +1468,12 @@ async function submitQuestion() {
     document.getElementById('fQuestion').value = '';
     hideSimilarity();
 
-    // 질문 등록 후 익명 질문 섹션 공개
+    // 질문 등록 후 익명 질문 섹션 공개 + localStorage에 기록
+    const registeredTopics = JSON.parse(localStorage.getItem('eq_registered_topics') || '[]');
+    if (!registeredTopics.includes(selectedTopic.id)) {
+      registeredTopics.push(selectedTopic.id);
+      localStorage.setItem('eq_registered_topics', JSON.stringify(registeredTopics));
+    }
     const anonSection = document.getElementById('anonSection');
     if (anonSection) anonSection.style.display = 'block';
     renderAnonQuestions();

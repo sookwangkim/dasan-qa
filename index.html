@@ -757,9 +757,12 @@
 
       <!-- Panel: Category Management -->
       <div class="admin-panel" id="panel-catmgmt">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
           <p style="font-size:12px;color:var(--text3)">카테고리와 키워드를 관리합니다. 질문 등록 시 키워드가 포함되면 해당 카테고리로 자동 분류됩니다.</p>
-          <button class="btn btn-primary btn-sm admin-only" onclick="openModal('modalAddCategory')">+ 카테고리 추가</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-ghost btn-sm admin-only" onclick="reclassifyAll()">🔄 전체 재분류</button>
+            <button class="btn btn-primary btn-sm admin-only" onclick="openModal('modalAddCategory')">+ 카테고리 추가</button>
+          </div>
         </div>
         <div id="catMgmtList"></div>
       </div>
@@ -1420,8 +1423,41 @@ async function deleteCategory(idx) {
   });
 }
 
+// ── 전체 재분류 ──
+async function reclassifyAll() {
+  if (!allQuestions.length) { toast('재분류할 질문이 없습니다', 'error'); return; }
+
+  const confirmed = confirm(`전체 질문 ${allQuestions.length}개를 현재 카테고리 키워드 기준으로 재분류합니다.\n계속하시겠습니까?`);
+  if (!confirmed) return;
+
+  toast('재분류 중...', 'success');
+
+  try {
+    if (useFirebase) {
+      const batch = db.batch();
+      allQuestions.forEach(q => {
+        const newCategory = classifyCategory(q.question);
+        if (newCategory !== q.category) {
+          batch.update(db.collection('questions').doc(q.id), { category: newCategory });
+        }
+      });
+      await batch.commit();
+    } else {
+      localQuestions = localQuestions.map(q => ({
+        ...q,
+        category: classifyCategory(q.question)
+      }));
+      saveLocal();
+    }
+    await loadAdminData();
+    toast('전체 재분류가 완료되었습니다 ✓', 'success');
+  } catch(e) {
+    console.error(e);
+    toast('재분류 중 오류가 발생했습니다', 'error');
+  }
+}
+
 function updateCatFilterOptions() {
-  const sel = document.getElementById('filterCat');
   if (!sel) return;
   const cur = sel.value;
   sel.innerHTML = '<option value="">전체 카테고리</option>' +
